@@ -1,15 +1,16 @@
 package com.example.uni.auth;
 
-import com.example.uni.common.exception.ApiException;
-import com.example.uni.common.exception.ErrorCode;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import jakarta.servlet.http.HttpServletResponse;
+import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 
@@ -19,42 +20,54 @@ import java.util.UUID;
 public class AuthController {
 
     private final UserRepository userRepository;
-    private final KakaoMobileLoginService mobileLoginService;
-    private final JwtProvider jwtProvider;
+    private final OAuthService oAuthService;
+    private final CookieUtil cookieUtil;
 
-    /**
-     * 모바일: 카카오 access_token을 Authorization 헤더로 받아 우리 JWT 발급
-     * 요청 헤더: Authorization: Bearer <KAKAO_ACCESS_TOKEN>
-     * 응답: { "jwt": "<OUR_JWT>", "onboardingRequired": true|false }
-     */
-    @PostMapping("/mobile/login")
-    public ResponseEntity<Map<String, Object>> mobileLogin(
-            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+    @Value("${kakao.client-id}")
+    private String kakaoClientId;
 
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            throw new ApiException(ErrorCode.UNAUTHORIZED);
-        }
-        String kakaoAccessToken = authorization.substring(7);
+    @Value("${kakao.redirect-uri}")
+    private String redirectUri; // ex) https://api.yourdomain.com/auth/kakao/callback
 
-        // 1) 카카오 토큰으로 로그인 처리 → 우리 JWT 발급
-        String jwt = mobileLoginService.loginWithKakaoAccessToken(kakaoAccessToken);
+    @Value("${frontend.redirect-base}")
+    private String frontendBase; // ex) https://yourdomain.com
 
-        // 2) 우리 JWT에서 userId 추출 → 온보딩 필요 여부 계산
-        String userId = jwtProvider.validateAndGetSubject(jwt);
-        boolean onboardingRequired = userRepository.findById(UUID.fromString(userId))
-                .map(u -> !u.isProfileComplete())
-                .orElse(true);
+    @GetMapping("/kakao/login")
+    public ResponseEntity<Void> login(@RequestParam(value = "next", required = false) String next) {
+        String state = next == null ? "/" : next;
 
-        return ResponseEntity.ok(Map.of(
-                "jwt", jwt,
-                "onboardingRequired", onboardingRequired
-        ));
+        URI authorize = UriComponentsBuilder
+                .fromUriString("https://kauth.kakao.com/oauth/authorize")
+                .queryParam("client_id", kakaoClientId)
+                .queryParam("redirect_uri", redirectUri)
+                .queryParam("response_type", "code")
+                .queryParam("state", state)
+                // .queryParam("scope","profile_nickname") // 필요시
+                .build(true).toUri();
+
+        return ResponseEntity.status(302).location(authorize).build();
     }
 
-    /**
-     * JWT 인증 후 내 상태 요약
-     * 요청 헤더: Authorization: Bearer <OUR_JWT>
-     */
+    @GetMapping("/kakao/callback")
+    public ResponseEntity<Void> callback(@RequestParam("code") String code,
+                                         @RequestParam(value = "state", required = false, defaultValue = "/") String state,
+                                         HttpServletResponse response) {
+        String jwt = oAuthService.loginWithAuthorizationCode(code);
+        cookieUtil.setAccessCookie(response, jwt);
+
+        URI target = UriComponentsBuilder.fromUriString(frontendBase)
+                .path(state.startsWith("/") ? state : "/" + state)
+                .build(true).toUri();
+
+        return ResponseEntity.status(302).location(target).build();
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletResponse response) {
+        cookieUtil.clearAccessCookie(response);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal String userId) {
         User u = userRepository.findById(UUID.fromString(userId)).orElseThrow();
