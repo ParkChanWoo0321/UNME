@@ -36,7 +36,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String token = resolveFromCookie(request);
         if (!StringUtils.hasText(token)) {
-            // 과도기용: 헤더도 허용
             String header = request.getHeader("Authorization");
             if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
                 token = header.substring(7);

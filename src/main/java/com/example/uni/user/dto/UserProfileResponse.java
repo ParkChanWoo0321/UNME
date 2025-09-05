@@ -1,27 +1,19 @@
+// user/dto/UserProfileResponse.java
 package com.example.uni.user.dto;
 
-import com.example.uni.user.domain.*;
+import com.example.uni.user.domain.Gender;
 import lombok.Builder; import lombok.Getter;
+
+import java.util.UUID;
 
 @Getter @Builder
 public class UserProfileResponse {
-    private String nickname;
+    private UUID userId;
+    private String name;
+    private String department;
+    private String studentNo;
     private Integer age;
-    private String studentId;
-    private String major;
-    private Mbti mbti;
-    private HeightBand heightBand;
-    private String selfIntro;
-    private MaleHair maleHair;
-    private FemaleHair femaleHair;
-
-    // ideal
-    private Mbti idealMbti;
-    private HeightBand idealHeightBand;
-    private AgePref idealAgePref;
-    private MaleHair idealMaleHair;
-    private FemaleHair idealFemaleHair;
-
+    private Gender gender;
     private boolean profileComplete;
     private int matchCredits;
 }

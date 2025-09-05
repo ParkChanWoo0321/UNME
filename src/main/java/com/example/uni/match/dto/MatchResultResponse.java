@@ -7,6 +7,6 @@ import java.util.Map;
 
 @Getter @Builder
 public class MatchResultResponse {
-    private int ruleHit; // 2|1|0
-    private List<Map<String,Object>> candidates; // {userId,nickname,hit}
+    private int ruleHit;
+    private List<Map<String,Object>> candidates;
 }

@@ -23,7 +23,7 @@ public class CookieUtil {
     private long maxAgeSeconds;
 
     @Value("${auth.cookie.same-site}")
-    private String sameSite; // None / Lax / Strict
+    private String sameSite;
 
     public void setAccessCookie(HttpServletResponse response, String jwt) {
         ResponseCookie cookie = ResponseCookie.from(cookieName, jwt)

@@ -42,7 +42,6 @@ public class AuthController {
                 .queryParam("redirect_uri", redirectUri)
                 .queryParam("response_type", "code")
                 .queryParam("state", state)
-                // .queryParam("scope","profile_nickname") // 필요시
                 .build(true).toUri();
 
         return ResponseEntity.status(302).location(authorize).build();

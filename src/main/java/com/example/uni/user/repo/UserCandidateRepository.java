@@ -1,3 +1,4 @@
+// user/repo/UserCandidateRepository.java
 package com.example.uni.user.repo;
 
 import com.example.uni.user.domain.Gender;
@@ -8,5 +9,8 @@ import java.util.List;
 import java.util.UUID;
 
 public interface UserCandidateRepository extends JpaRepository<User, UUID> {
-    List<User> findByGenderAndProfileCompleteTrueAndIdNot(Gender gender, UUID excludeId);
+    // 이성 + 같은 학과 제외 + 프로필 완료 + 본인 제외
+    List<User> findByGenderAndDepartmentNotAndProfileCompleteTrueAndIdNot(
+            Gender gender, String department, UUID excludeId
+    );
 }
