@@ -16,8 +16,7 @@ public class RealtimeNotifier {
         ws.convertAndSendToUser(userId.toString(), dest, payload);
     }
 
-    public static final String Q_SIGNAL = "/queue/signal";           // 신호 이벤트
-    public static final String Q_MATCH  = "/queue/match";            // 매칭 성사
-    public static String qChat(UUID roomId) { return "/queue/chat/" + roomId; } // 방별 채팅
-    public static final String Q_CHAT_LIST = "/queue/chat-list";     // 채팅목록 썸네일 갱신(선택)
+    // ⬇︎ 채팅 큐는 삭제, 신호/매칭만 유지
+    public static final String Q_SIGNAL = "/queue/signal";  // 신호 이벤트
+    public static final String Q_MATCH  = "/queue/match";   // 매칭 성사
 }

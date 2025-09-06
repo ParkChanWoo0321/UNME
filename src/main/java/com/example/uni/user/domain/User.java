@@ -35,15 +35,16 @@ public class User extends BaseTimeEntity {
     private String email;
 
     // === 프로필 (온보딩 전 null 허용) ===
-    private String name;                // nullable
-    private String department;          // nullable
+    private String name;                // 닉네임, nullable
+    private String department;          // 학과, nullable
 
     @Column(name = "student_no")
     private String studentNo;           // nullable
 
-    private Integer age;                // nullable
+    @Column(name = "birth_year")
+    private Integer birthYear;          // 출생연도, nullable
 
-    // 성향(JSON) 저장용
+    // 성향(JSON)
     @Column(name = "traits_json", columnDefinition = "TEXT")
     private String traitsJson;
 
@@ -55,4 +56,7 @@ public class User extends BaseTimeEntity {
 
     @Version
     private Long version;
+
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
 }

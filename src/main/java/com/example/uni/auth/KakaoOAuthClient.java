@@ -1,5 +1,6 @@
 package com.example.uni.auth;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -59,7 +60,21 @@ public class KakaoOAuthClient {
 
     @Data
     public static class KakaoUser {
-        private String id;
-        // 필요 시 kakao_account, profile 등 추가
+        private Long id;
+
+        @JsonProperty("kakao_account")
+        private KakaoAccount kakaoAccount;
+
+        @Data
+        public static class KakaoAccount {
+            @JsonProperty("has_gender")
+            private Boolean hasGender;
+
+            @JsonProperty("gender_needs_agreement")
+            private Boolean genderNeedsAgreement;
+
+            // "male" or "female"
+            private String gender;
+        }
     }
 }

@@ -1,5 +1,5 @@
 // src/main/java/com/example/uni/chat/domain/ChatRoom.java
-package com.example.uni.chat.domain;
+package com.example.uni.chat;
 
 import com.example.uni.common.domain.BaseTimeEntity;
 import com.example.uni.user.domain.User;
@@ -28,7 +28,4 @@ public class ChatRoom extends BaseTimeEntity {
     private String anonymousNameB;
 
     private boolean accepted;
-
-    private Integer unreadCountA = 0;
-    private Integer unreadCountB = 0;
 }

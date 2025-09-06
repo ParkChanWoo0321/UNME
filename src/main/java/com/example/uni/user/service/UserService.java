@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Year;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -27,14 +28,14 @@ public class UserService {
         return userRepository.findById(id).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
     }
 
-    /** 온보딩: 이름/학과/학번/나이 저장 + 프로필 완료 + 크레딧 2 세팅(없을 때만) */
+    /** 온보딩: 닉네임/학과/학번/출생연도 저장 + 프로필 완료 + 크레딧 2 세팅(없을 때만) */
     @Transactional
     public User completeProfile(UUID userId, ProfileOnboardingRequest p) {
         User u = get(userId);
         u.setName(p.getName());
         u.setDepartment(p.getDepartment());
         u.setStudentNo(p.getStudentNo());
-        u.setAge(p.getAge());
+        u.setBirthYear(p.getBirthYear());
         u.setProfileComplete(true);
         if (u.getMatchCredits() <= 0) u.setMatchCredits(2);
         return userRepository.save(u);
@@ -70,15 +71,22 @@ public class UserService {
             try { traits = om.readValue(u.getTraitsJson(), Map.class); }
             catch (Exception ignored) { traits = new HashMap<>(); }
         }
+        Integer age = (u.getBirthYear() == null) ? null : (Year.now().getValue() - u.getBirthYear());
+
         return UserProfileResponse.builder()
                 .userId(u.getId())
                 .name(u.getName())
                 .department(u.getDepartment())
                 .studentNo(u.getStudentNo())
-                .age(u.getAge())
+                .birthYear(u.getBirthYear())
+                .age(age) // 계산된 나이
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
+                .profileImageUrl(u.getProfileImageUrl())
                 .build();
     }
+
+    @Transactional
+    public User save(User u){ return userRepository.save(u); }
 }

@@ -40,16 +40,21 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 프리플라이트 전부 허용
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // 공개 엔드포인트
+
+                        // 공개 엔드포인트(로그인/콜백/로그아웃, WS 핸드셰이크, 헬스체크 등)
                         .requestMatchers(
-                                "/auth/**",
+                                "/auth/kakao/login",
+                                "/auth/kakao/callback",
+                                "/auth/logout",
                                 "/ws/**",
+                                "/files/**",
                                 "/error",
                                 "/favicon.ico",
                                 "/actuator/**",
                                 "/ok"
                         ).permitAll()
-                        // 나머지는 인증 필요
+
+                        // 나머지는 인증 필요 (/auth/me, /auth/firebase/token 등 보호)
                         .anyRequest().authenticated()
                 );
 
@@ -61,16 +66,14 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
 
-        // 패턴 기반 오리진 허용 (포트/서브도메인 변화에 유연)
+        // 패턴 기반 오리진 허용 (서브도메인/포트 변동 대응)
         var origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim).filter(s -> !s.isBlank()).toList();
         cfg.setAllowedOriginPatterns(origins);
 
         cfg.setAllowCredentials(true);
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
-        // 다양한 커스텀 헤더 대응
-        cfg.setAllowedHeaders(List.of("*"));
-        // 클라이언트에서 읽을 수 있게 노출할 헤더
+        cfg.setAllowedHeaders(List.of("*")); // 커스텀 헤더 대응
         cfg.setExposedHeaders(List.of("Set-Cookie","Authorization","Location"));
         cfg.setMaxAge(3600L);
 
