@@ -26,7 +26,17 @@ public class ChatRestController {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
-    /** 선택 보강: 내가 속한 방 목록(미읽음/마지막메시지 등 요약) */
+    /** 읽음 처리 */
+    @PatchMapping("/rooms/{roomId}/read")
+    public ResponseEntity<?> markRead(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
+            @PathVariable UUID roomId
+    ){
+        chatService.markRead(roomId, UUID.fromString(principal));
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    /** 내가 속한 방 목록(요약) */
     @GetMapping("/rooms")
     public ResponseEntity<?> myRooms(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
@@ -37,7 +47,7 @@ public class ChatRestController {
         return ResponseEntity.ok(list);
     }
 
-    /** 선택 보강: 방 내 메시지 페이지 조회 */
+    /** 방 내 메시지 페이지 조회 */
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<?> roomMessages(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,

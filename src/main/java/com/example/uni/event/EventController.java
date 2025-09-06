@@ -1,6 +1,6 @@
-package com.example.uni.event.controller;
+package com.example.uni.event;
 
-import com.example.uni.event.service.EventService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,13 +15,14 @@ public class EventController {
 
     private final EventService eventService;
 
-    /** 코드 사용 → 매칭 크레딧 +3 */
-    @PostMapping("/redeem")
+    /** 코드 사용 → 매칭 크레딧 +3 (JSON Body) */
+    @PostMapping(value = "/redeem", consumes = "application/json")
     public ResponseEntity<Map<String,Object>> redeem(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @RequestParam String code){
+            @Valid @RequestBody RedeemRequest body
+    ){
         return ResponseEntity.ok(
-                eventService.redeem(UUID.fromString(principal), code)
+                eventService.redeem(UUID.fromString(principal), body.getCode())
         );
     }
 }

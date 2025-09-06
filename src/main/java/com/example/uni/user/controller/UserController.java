@@ -1,16 +1,21 @@
-// user/controller/UserController.java
 package com.example.uni.user.controller;
 
+import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.dto.ProfileOnboardingRequest;
 import com.example.uni.user.dto.UserProfileResponse;
 import com.example.uni.user.service.UserService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,7 +27,7 @@ public class UserController {
     private final UserService userService;
     private UUID uid(String principal){ return UUID.fromString(principal); }
 
-    /** 프로필 온보딩(최초 입력: 이름/학과/학번/나이) */
+    /** 프로필 온보딩(이름/학과/학번/나이) */
     @PutMapping("/profile")
     public ResponseEntity<UserProfileResponse> profile(
             @AuthenticationPrincipal String principal,
@@ -32,7 +37,27 @@ public class UserController {
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
-    /** 메인 요약(온보딩 필요/크레딧) */
+    /** 성별 1회 지정 */
+    @PutMapping("/gender")
+    public ResponseEntity<?> setGender(
+            @AuthenticationPrincipal String principal,
+            @Valid @RequestBody GenderRequest body
+    ){
+        userService.setGender(uid(principal), body.getGender());
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    /** 성향 저장(MBTI/태그 등) */
+    @PutMapping("/traits")
+    public ResponseEntity<?> saveTraits(
+            @AuthenticationPrincipal String principal,
+            @Valid @RequestBody TraitsRequest body
+    ){
+        userService.saveTraits(uid(principal), body);
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    /** 요약(온보딩 필요/크레딧) */
     @GetMapping("/summary")
     public ResponseEntity<?> summary(@AuthenticationPrincipal String principal){
         User u = userService.get(uid(principal));
@@ -49,5 +74,15 @@ public class UserController {
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
-    // 이상형/성향 관련 엔드포인트 전면 제거
+    // ===== DTO =====
+    @Getter @Setter
+    public static class GenderRequest {
+        @NotNull private Gender gender;
+    }
+    @Getter @Setter
+    public static class TraitsRequest {
+        private String mbti;
+        private List<String> tags;
+        private Map<String,Object> extra; // 확장용
+    }
 }

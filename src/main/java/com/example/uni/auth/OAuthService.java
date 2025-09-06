@@ -23,6 +23,7 @@ public class OAuthService {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
         String kakaoId = me.getId();
+
         User user = userRepository.findByKakaoId(kakaoId)
                 .orElseGet(() -> userRepository.save(
                         User.builder()

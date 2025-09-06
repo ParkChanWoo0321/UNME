@@ -1,4 +1,3 @@
-// user/domain/User.java
 package com.example.uni.user.domain;
 
 import com.example.uni.common.domain.BaseTimeEntity;
@@ -10,45 +9,50 @@ import java.util.UUID;
 
 @Getter @Setter
 @Entity
-@Table(name = "users", indexes = {
-        @Index(name = "uk_kakao_id", columnList = "kakaoId", unique = true),
-        @Index(name = "idx_users_gender", columnList = "gender"),
-        @Index(name = "idx_users_department", columnList = "department")
-})
+@Table(
+        name = "users",
+        indexes = {
+                @Index(name = "idx_users_gender", columnList = "gender"),
+                @Index(name = "idx_users_department", columnList = "department")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_kakao_id", columnNames = "kakao_id")
+        }
+)
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class User extends BaseTimeEntity {
 
     @Id @GeneratedValue @UuidGenerator
     private UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "kakao_id", nullable = false)
     private String kakaoId;
 
+    /** 온보딩 전 가입 허용을 위해 null 허용 */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Gender gender;
+    private Gender gender;              // nullable
 
     private String email;
 
-    // === 프로필: 이름/학과/학번/나이 ===
-    @Column(nullable = false)
-    private String name;        // 이름
+    // === 프로필 (온보딩 전 null 허용) ===
+    private String name;                // nullable
+    private String department;          // nullable
 
-    @Column(nullable = false)
-    private String department;  // 학과
+    @Column(name = "student_no")
+    private String studentNo;           // nullable
 
-    @Column(nullable = false)
-    private String studentNo;   // 학번
+    private Integer age;                // nullable
 
-    @Column(nullable = false)
-    private Integer age;        // 나이
+    // 성향(JSON) 저장용
+    @Column(name = "traits_json", columnDefinition = "TEXT")
+    private String traitsJson;
 
-    // 온보딩 및 매칭 크레딧
-    @Column(nullable = false)
+    @Column(name = "profile_complete", nullable = false)
     private boolean profileComplete;
 
-    @Column(nullable = false)
+    @Column(name = "match_credits", nullable = false)
     private int matchCredits;
 
-    @Version private Long version;
+    @Version
+    private Long version;
 }
