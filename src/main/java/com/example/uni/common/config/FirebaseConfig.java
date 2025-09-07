@@ -5,7 +5,7 @@ import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty; // ⬅ 추가
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Configuration;
 
 import java.io.ByteArrayInputStream;
@@ -13,16 +13,16 @@ import java.io.FileInputStream;
 import java.util.Base64;
 
 @Configuration
-@ConditionalOnProperty(prefix = "feature.firebase", name = "enabled", havingValue = "true") // ⬅ 스위치
+@ConditionalOnProperty(prefix = "feature.firebase", name = "enabled", havingValue = "true")
 public class FirebaseConfig {
 
-    @Value("${firebase.project-id:}")            // ⬅ 기본값
+    @Value("${firebase.project-id:}")
     private String projectId;
 
-    @Value("${firebase.service-account-path:}")  // ⬅ 기본값
+    @Value("${firebase.service-account-path:}")
     private String saPath;
 
-    @Value("${firebase.service-account-base64:}")// ⬅ 기본값
+    @Value("${firebase.service-account-base64:}")
     private String saBase64;
 
     @PostConstruct
@@ -31,7 +31,6 @@ public class FirebaseConfig {
 
         if ((projectId == null || projectId.isBlank()) ||
                 ((saPath == null || saPath.isBlank()) && (saBase64 == null || saBase64.isBlank()))) {
-            // 값이 비어있으면 그냥 스킵
             return;
         }
 

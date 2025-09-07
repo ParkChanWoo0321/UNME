@@ -38,7 +38,6 @@ public class MatchingService {
         if (me.getMatchCredits() < 1)
             throw new ApiException(ErrorCode.QUOTA_EXCEEDED);
 
-        // 크레딧 차감
         me.setMatchCredits(me.getMatchCredits() - 1);
 
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
@@ -47,25 +46,18 @@ public class MatchingService {
                 .findByGenderAndDepartmentNotAndProfileCompleteTrueAndIdNot(
                         opposite, me.getDepartment(), me.getId()
                 );
-
-        // 이미 보낸 신호 대상 제외
         Set<UUID> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
-
         List<Map<String,Object>> candidates = new ArrayList<>();
         Collections.shuffle(pool);
         for (User u : pool) {
             if (candidates.size() == 3) break;
             if (alreadySignaled.contains(u.getId())) continue;
-
             boolean hasRoom = chatRoomRepository.findByUserAAndUserB(me, u).isPresent()
                     || chatRoomRepository.findByUserBAndUserA(u, me).isPresent();
             if (hasRoom) continue;
-
-            // 학과/학번/나이/프로필사진 공개
             candidates.add(publicUserCard(u));
         }
-
         return MatchResultResponse.builder()
                 .ruleHit(0)
                 .candidates(candidates)
@@ -85,7 +77,6 @@ public class MatchingService {
         if (me.getGender() == target.getGender())
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
 
-        // 이미 방이 있으면 신호 금지
         boolean hasRoom = chatRoomRepository.findByUserAAndUserB(me, target).isPresent()
                 || chatRoomRepository.findByUserBAndUserA(target, me).isPresent();
         if (hasRoom) throw new ApiException(ErrorCode.CONFLICT);
@@ -98,7 +89,7 @@ public class MatchingService {
             notifier.toUser(
                     target.getId(),
                     RealtimeNotifier.Q_SIGNAL,
-                    Map.of("type","SENT","fromUser", publicUserCard(me)) // 사진 포함
+                    Map.of("type","SENT","fromUser", publicUserCard(me))
             );
         }
 
@@ -114,7 +105,7 @@ public class MatchingService {
         s.setStatus(Signal.Status.CANCELED);
         signalRepository.save(s);
         notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_SIGNAL,
-                Map.of("type","CANCELED","fromUser", publicUserCard(s.getSender()))); // 사진 포함
+                Map.of("type","CANCELED","fromUser", publicUserCard(s.getSender())));
         return Map.of("ok", true);
     }
 
@@ -127,7 +118,7 @@ public class MatchingService {
         s.setStatus(Signal.Status.DECLINED);
         signalRepository.save(s);
         notifier.toUser(s.getSender().getId(), RealtimeNotifier.Q_SIGNAL,
-                Map.of("type","DECLINED","fromUser", publicUserCard(s.getReceiver()))); // 사진 포함
+                Map.of("type","DECLINED","fromUser", publicUserCard(s.getReceiver())));
         return Map.of("ok", true);
     }
 
@@ -136,11 +127,8 @@ public class MatchingService {
     public Map<String,Object> acceptSignal(UUID meId, UUID signalId){
         Signal s = signalRepository.findById(signalId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         if (!s.getReceiver().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
-
         s.setStatus(Signal.Status.MUTUAL);
         signalRepository.save(s);
-
-        // 반대방향 동기화
         signalRepository.findBySenderAndReceiver(s.getReceiver(), s.getSender())
                 .ifPresent(other -> {
                     if (other.getStatus() != Signal.Status.MUTUAL) {
@@ -151,8 +139,8 @@ public class MatchingService {
 
         ChatRoom room = chatService.createOrReuseRoom(s.getSender().getId(), s.getReceiver().getId());
 
-        Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getReceiver())); // 사진 포함
-        Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getSender()));   // 사진 포함
+        Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getReceiver()));
+        Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getSender()));
         notifier.toUser(s.getSender().getId(),   RealtimeNotifier.Q_MATCH, forSender);
         notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
 
@@ -169,7 +157,7 @@ public class MatchingService {
             User r = s.getReceiver();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("toUser", publicUserCard(r)); // 사진 포함
+            row.put("toUser", publicUserCard(r));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
             out.add(row);
@@ -187,7 +175,7 @@ public class MatchingService {
             User from = s.getSender();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("fromUser", publicUserCard(from)); // 사진 포함
+            row.put("fromUser", publicUserCard(from));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
             out.add(row);
@@ -199,27 +187,14 @@ public class MatchingService {
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listMutualMatches(UUID meId){
         User me = userRepository.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
-
+        var rooms = chatRoomRepository.findAllForUserOrderByUpdatedAtDesc(me);
         List<Map<String,Object>> out = new ArrayList<>();
-        for (Signal s : signalRepository.findAllBySenderAndStatusOrderByCreatedAtDesc(me, Signal.Status.MUTUAL)) {
-            User peer = s.getReceiver();
-            UUID roomId = chatRoomIdBetween(me, peer);
-            out.add(matchRow(peer, roomId, s.getCreatedAt()));
+        for (ChatRoom r : rooms) {
+            User peer = r.getUserA().getId().equals(me.getId()) ? r.getUserB() : r.getUserA();
+            out.add(matchRow(peer, r.getId(), r.getCreatedAt()));
         }
-        for (Signal s : signalRepository.findAllByReceiverAndStatusOrderByCreatedAtDesc(me, Signal.Status.MUTUAL)) {
-            User peer = s.getSender();
-            UUID roomId = chatRoomIdBetween(me, peer);
-            out.add(matchRow(peer, roomId, s.getCreatedAt()));
-        }
-        // 동일 상대 dedup
-        LinkedHashMap<UUID, Map<String,Object>> dedup = new LinkedHashMap<>();
-        for (Map<String,Object> row : out) {
-            dedup.put((UUID) ((Map<?,?>)row.get("peer")).get("userId"), row);
-        }
-        return new ArrayList<>(dedup.values());
+        return out;
     }
-
-    /* ---------- 내부 유틸 ---------- */
 
     /** 후보/신호/매칭 공통 공개 카드 (학과/학번/나이/프로필사진/성향요약) */
     private Map<String, Object> publicUserCard(User u) {
@@ -229,7 +204,7 @@ public class MatchingService {
         card.put("studentNo", u.getStudentNo());
 
         Integer age = (u.getBirthYear() == null) ? null : (Year.now().getValue() - u.getBirthYear());
-        if (age != null) card.put("age", age); // null은 넣지 않음(Map.of와 호환성)
+        if (age != null) card.put("age", age);
 
         String img = u.getProfileImageUrl();
         if (img != null && !img.isBlank()) card.put("profileImageUrl", img);
@@ -243,14 +218,8 @@ public class MatchingService {
     private Map<String,Object> matchRow(User peer, UUID roomId, Object matchedAt){
         Map<String,Object> row = new LinkedHashMap<>();
         row.put("peer", publicUserCard(peer));
-        row.put("roomId", roomId);      // null 허용
+        row.put("roomId", roomId);
         row.put("matchedAt", matchedAt);
         return row;
-    }
-
-    private UUID chatRoomIdBetween(User a, User b){
-        return chatRoomRepository.findByUserAAndUserB(a, b)
-                .or(() -> chatRoomRepository.findByUserBAndUserA(a, b))
-                .map(ChatRoom::getId).orElse(null);
     }
 }

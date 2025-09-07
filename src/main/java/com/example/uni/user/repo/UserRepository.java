@@ -1,4 +1,3 @@
-// user/repo/UserRepository.java
 package com.example.uni.user.repo;
 
 import com.example.uni.user.domain.User;
@@ -9,4 +8,6 @@ import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByKakaoId(String kakaoId);
+    boolean existsByNameIgnoreCase(String name);
+    Optional<User> findByNameIgnoreCase(String name);
 }

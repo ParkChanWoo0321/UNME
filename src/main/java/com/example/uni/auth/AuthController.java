@@ -3,7 +3,7 @@ package com.example.uni.auth;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;          // ⬅ 추가
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,7 +24,7 @@ public class AuthController {
     private final OAuthService oAuthService;
     private final CookieUtil cookieUtil;
 
-    @Autowired(required = false)               // ⬅ 옵셔널 주입
+    @Autowired(required = false)
     private FirebaseTokenService firebaseTokenService;
 
     @Value("${kakao.client-id}")

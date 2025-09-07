@@ -22,14 +22,10 @@ public class EventService {
     public Map<String, Object> redeem(UUID userId, String code){
         String normalized = code == null ? "" : code.trim().toUpperCase();
         if (normalized.isBlank()) throw new ApiException(ErrorCode.VALIDATION_ERROR);
-
-        // 선착순 1명만 성공: 변경된 row 수가 1이어야 함
         int changed = codeRepo.markUsedIfUsable(normalized, LocalDateTime.now());
-        if (changed == 0) throw new ApiException(ErrorCode.NOT_FOUND); // 없음/이미 사용됨
-
+        if (changed == 0) throw new ApiException(ErrorCode.NOT_FOUND);
         var user = userRepo.findById(userId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         user.setMatchCredits(user.getMatchCredits() + 3);
-
         return Map.of("ok", true, "creditsAfter", user.getMatchCredits());
     }
 }

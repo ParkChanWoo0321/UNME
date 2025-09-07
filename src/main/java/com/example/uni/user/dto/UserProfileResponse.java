@@ -13,8 +13,8 @@ public class UserProfileResponse {
     private String name;
     private String department;
     private String studentNo;
-    private Integer birthYear;   // 저장된 출생연도
-    private Integer age;         // 응답 시 계산된 나이
+    private Integer birthYear;
+    private Integer age;
     private Gender gender;
     private boolean profileComplete;
     private int matchCredits;

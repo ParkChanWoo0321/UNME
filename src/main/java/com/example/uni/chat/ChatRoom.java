@@ -1,4 +1,3 @@
-// src/main/java/com/example/uni/chat/domain/ChatRoom.java
 package com.example.uni.chat;
 
 import com.example.uni.common.domain.BaseTimeEntity;

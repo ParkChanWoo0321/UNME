@@ -26,7 +26,7 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
 
     @Value("${cors.allowed-origins}")
-    private String allowedOrigins; // 콤마 구분 목록
+    private String allowedOrigins;
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -38,10 +38,7 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .logout(logout -> logout.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // 프리플라이트 전부 허용
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // 공개 엔드포인트(로그인/콜백/로그아웃, WS 핸드셰이크, 헬스체크 등)
                         .requestMatchers(
                                 "/auth/kakao/login",
                                 "/auth/kakao/callback",
@@ -53,11 +50,8 @@ public class SecurityConfig {
                                 "/actuator/**",
                                 "/ok"
                         ).permitAll()
-
-                        // 나머지는 인증 필요 (/auth/me, /auth/firebase/token 등 보호)
                         .anyRequest().authenticated()
                 );
-
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
@@ -65,15 +59,13 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-
-        // 패턴 기반 오리진 허용 (서브도메인/포트 변동 대응)
         var origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim).filter(s -> !s.isBlank()).toList();
         cfg.setAllowedOriginPatterns(origins);
 
         cfg.setAllowCredentials(true);
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*")); // 커스텀 헤더 대응
+        cfg.setAllowedHeaders(List.of("*"));
         cfg.setExposedHeaders(List.of("Set-Cookie","Authorization","Location"));
         cfg.setMaxAge(3600L);
 

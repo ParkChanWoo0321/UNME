@@ -14,7 +14,7 @@ public class ProfileOnboardingRequest {
     @NotBlank
     private String department;  // 학과(프론트에서 선택하여 텍스트로 전달)
 
-    @NotBlank @Size(min = 15, max = 25)
+    @NotNull @Min(15) @Max(25)
     private String studentNo;   // 학번(15~25)
 
     @NotNull @Min(1990) @Max(2006)

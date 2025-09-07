@@ -18,7 +18,7 @@ public class VerifyCode extends BaseTimeEntity {
     private UUID id;
 
     /** 미리 DB에 넣어둘 코드(대문자 권장) */
-    @Column(nullable = false) // 유니크는 위 @Index로만 관리
+    @Column(nullable = false)
     private String code;
 
     /** 1회성 사용 플래그 및 사용 시각 */

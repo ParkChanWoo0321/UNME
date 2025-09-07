@@ -22,7 +22,6 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         var accessor = StompHeaderAccessor.wrap(message);
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            // 앱에서 CONNECT 시 native header로 Authorization: Bearer <JWT> 전달
             String auth = accessor.getFirstNativeHeader("Authorization");
             if (auth == null) auth = accessor.getFirstNativeHeader("authorization");
 

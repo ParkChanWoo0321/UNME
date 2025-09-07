@@ -13,7 +13,8 @@ import java.util.UUID;
         name = "users",
         indexes = {
                 @Index(name = "idx_users_gender", columnList = "gender"),
-                @Index(name = "idx_users_department", columnList = "department")
+                @Index(name = "idx_users_department", columnList = "department"),
+                @Index(name = "uk_users_name", columnList = "name", unique = true)
         },
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_kakao_id", columnNames = "kakao_id")
@@ -30,21 +31,21 @@ public class User extends BaseTimeEntity {
 
     /** 온보딩 전 가입 허용을 위해 null 허용 */
     @Enumerated(EnumType.STRING)
-    private Gender gender;              // nullable
+    private Gender gender;
 
     private String email;
 
-    // === 프로필 (온보딩 전 null 허용) ===
-    private String name;                // 닉네임, nullable
-    private String department;          // 학과, nullable
+    @Column(name = "name", length = 8)
+    private String name;
+
+    private String department;
 
     @Column(name = "student_no")
-    private String studentNo;           // nullable
+    private String studentNo;
 
     @Column(name = "birth_year")
-    private Integer birthYear;          // 출생연도, nullable
+    private Integer birthYear;
 
-    // 성향(JSON)
     @Column(name = "traits_json", columnDefinition = "TEXT")
     private String traitsJson;
 
@@ -59,4 +60,13 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "profile_image_url")
     private String profileImageUrl;
+
+    @Column(name = "dating_style_summary", columnDefinition = "TEXT")
+    private String datingStyleSummary;
+
+    @Column(name = "dating_style_answers_json", columnDefinition = "TEXT")
+    private String datingStyleAnswersJson;
+
+    @Column(name = "dating_style_completed", nullable = false, columnDefinition = "boolean default false")
+    private boolean datingStyleCompleted;
 }

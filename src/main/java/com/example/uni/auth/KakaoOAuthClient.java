@@ -13,9 +13,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class KakaoOAuthClient {
 
     @Value("${kakao.auth.base-url}")
-    private String authBase; // https://kauth.kakao.com
+    private String authBase;
     @Value("${kakao.api.base-url}")
-    private String apiBase;  // https://kapi.kakao.com
+    private String apiBase;
 
     @Value("${kakao.client-id}")
     private String clientId;
@@ -61,19 +61,14 @@ public class KakaoOAuthClient {
     @Data
     public static class KakaoUser {
         private Long id;
-
         @JsonProperty("kakao_account")
         private KakaoAccount kakaoAccount;
-
         @Data
         public static class KakaoAccount {
             @JsonProperty("has_gender")
             private Boolean hasGender;
-
             @JsonProperty("gender_needs_agreement")
             private Boolean genderNeedsAgreement;
-
-            // "male" or "female"
             private String gender;
         }
     }

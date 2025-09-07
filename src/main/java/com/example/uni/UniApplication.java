@@ -8,7 +8,7 @@ import org.springframework.boot.autoconfigure.security.reactive.ReactiveUserDeta
 @SpringBootApplication(
         exclude = {
                 UserDetailsServiceAutoConfiguration.class,
-                ReactiveUserDetailsServiceAutoConfiguration.class // webflux starter도 쓰면 함께 제외
+                ReactiveUserDetailsServiceAutoConfiguration.class
         }
 )
 public class UniApplication {

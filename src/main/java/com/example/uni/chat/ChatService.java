@@ -25,16 +25,13 @@ public class ChatService {
         User me   = userRepo.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         User peer = userRepo.findById(peerId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
 
-        // 레거시 레코드 호환: 두 방향 모두 먼저 조회
         Optional<ChatRoom> legacy = roomRepo.findByUserAAndUserB(me, peer)
                 .or(() -> roomRepo.findByUserBAndUserA(me, peer));
         if (legacy.isPresent()) return legacy.get();
 
-        // 캐노니컬 정렬(항상 userA.id <= userB.id)
         User a = me.getId().compareTo(peer.getId()) <= 0 ? me : peer;
         User b = (a == me) ? peer : me;
 
-        // 다시 조회(캐노니컬) 후 생성 시도
         Optional<ChatRoom> found = roomRepo.findByUserAAndUserB(a, b);
         if (found.isPresent()) return found.get();
 
@@ -46,7 +43,6 @@ public class ChatService {
                     .accepted(true)
                     .build());
         } catch (DataIntegrityViolationException e) {
-            // 유니크 제약 충돌 ⇒ 누군가 먼저 만듦 → 재조회 반환
             return roomRepo.findByUserAAndUserB(a, b).orElseThrow(() -> e);
         }
     }

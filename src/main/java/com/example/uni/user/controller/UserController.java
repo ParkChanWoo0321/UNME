@@ -1,10 +1,11 @@
-// src/main/java/com/example/uni/user/controller/UserController.java
 package com.example.uni.user.controller;
 
 import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
+import com.example.uni.user.dto.DatingStyleRequest;
 import com.example.uni.user.dto.ProfileOnboardingRequest;
 import com.example.uni.user.dto.UserProfileResponse;
+import com.example.uni.user.service.DatingStyleService;
 import com.example.uni.user.service.LocalImageStorageService;
 import com.example.uni.user.service.UserService;
 import jakarta.validation.Valid;
@@ -12,14 +13,13 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import org.springframework.http.MediaType; // ⬅ 추가
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile; // ⬅ 추가
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -29,9 +29,17 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
-    private final LocalImageStorageService storage; // ⬅ 추가
+    private final LocalImageStorageService storage;
+    private final DatingStyleService datingStyleService;
 
     private UUID uid(String principal){ return UUID.fromString(principal); }
+
+    /** ✅ 닉네임 중복확인 */
+    @GetMapping("/name/check")
+    public ResponseEntity<?> checkName(@RequestParam("name") String name) {
+        boolean available = userService.isNameAvailable(name);
+        return ResponseEntity.ok(Map.of("available", available));
+    }
 
     /** 프로필 온보딩(이름/학과/학번/출생연도) */
     @PutMapping("/profile")
@@ -53,16 +61,6 @@ public class UserController {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
-    /** 성향 저장(MBTI/태그 등) */
-    @PutMapping("/traits")
-    public ResponseEntity<?> saveTraits(
-            @AuthenticationPrincipal String principal,
-            @Valid @RequestBody TraitsRequest body
-    ){
-        userService.saveTraits(uid(principal), body);
-        return ResponseEntity.ok(Map.of("ok", true));
-    }
-
     /** 요약(온보딩 필요/크레딧) */
     @GetMapping("/summary")
     public ResponseEntity<?> summary(@AuthenticationPrincipal String principal){
@@ -80,6 +78,22 @@ public class UserController {
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
+    /** ✅ 데이팅 스타일 제출(가입 1회) */
+    @PostMapping("/dating-style")
+    public ResponseEntity<?> submitDatingStyle(
+            @AuthenticationPrincipal String principal,
+            @Validated @RequestBody DatingStyleRequest req
+    ){
+        return ResponseEntity.ok(datingStyleService.complete(uid(principal), req));
+    }
+
+    /** ✅ 내 상세보기(요약 포함) */
+    @GetMapping("/detail")
+    public ResponseEntity<?> myDetail(@AuthenticationPrincipal String principal){
+        User u = userService.get(uid(principal));
+        return ResponseEntity.ok(userService.toDetailCard(u));
+    }
+
     /** 프로필 사진 업로드 */
     @PostMapping(value = "/profile/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<UserProfileResponse> uploadPhoto(
@@ -88,14 +102,11 @@ public class UserController {
     ) throws Exception {
         UUID me = uid(principal);
         User u = userService.get(me);
-
-        // 기존 파일 있으면 삭제(선택)
-        if (u.getProfileImageUrl() != null) storage.deleteByUrl(u.getProfileImageUrl());
-
-        String url = storage.storeProfileImage(me, file);
-        u.setProfileImageUrl(url);
-        userService.save(u); // ⬅ 저장
-
+        String oldUrl = u.getProfileImageUrl();
+        String newUrl = storage.storeProfileImage(me, file);
+        u.setProfileImageUrl(newUrl);
+        userService.save(u);
+        if (oldUrl != null) storage.deleteByUrl(oldUrl);
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
@@ -112,15 +123,8 @@ public class UserController {
         return ResponseEntity.ok(Map.of("ok", true));
     }
 
-    // ===== DTO =====
     @Getter @Setter
     public static class GenderRequest {
         @NotNull private Gender gender;
-    }
-    @Getter @Setter
-    public static class TraitsRequest {
-        private String mbti;
-        private List<String> tags;
-        private Map<String,Object> extra; // 확장용
     }
 }
