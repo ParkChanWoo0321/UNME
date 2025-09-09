@@ -44,7 +44,7 @@ public class DatingStyleService {
         try { u.setDatingStyleAnswersJson(om.writeValueAsString(answers)); }
         catch (Exception ignored) { u.setDatingStyleAnswersJson("{}"); }
 
-        u.setDatingStyleSummary(summary);
+        u.setStyleSummary(summary);
         u.setDatingStyleCompleted(true);
         userRepository.save(u);
 

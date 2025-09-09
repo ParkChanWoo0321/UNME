@@ -3,7 +3,7 @@ package com.example.uni.auth;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,8 +24,7 @@ public class AuthController {
     private final OAuthService oAuthService;
     private final CookieUtil cookieUtil;
 
-    @Autowired(required = false)
-    private FirebaseTokenService firebaseTokenService;
+    private final ObjectProvider<FirebaseTokenService> firebaseTokenService;
 
     @Value("${kakao.client-id}")
     private String kakaoClientId;
@@ -78,14 +77,21 @@ public class AuthController {
     }
 
     @GetMapping("/firebase/token")
-    public ResponseEntity<?> firebaseToken(@AuthenticationPrincipal String userId) throws Exception {
-        if (firebaseTokenService == null) {
+    public ResponseEntity<?> firebaseToken(@AuthenticationPrincipal String userId) {
+        FirebaseTokenService svc = firebaseTokenService.getIfAvailable();
+        if (svc == null) {
             return ResponseEntity.status(503).body(Map.of(
                     "error", "FIREBASE_DISABLED",
                     "message", "Firebase is disabled on server"
             ));
         }
-        String customToken = firebaseTokenService.createCustomToken(userId);
-        return ResponseEntity.ok(Map.of("customToken", customToken));
+        try {
+            String customToken = svc.createCustomToken(userId);
+            return ResponseEntity.ok(Map.of("customToken", customToken));
+        } catch (Exception e) {
+            throw new com.example.uni.common.exception.ApiException(
+                    com.example.uni.common.exception.ErrorCode.INTERNAL_SERVER_ERROR
+            );
+        }
     }
 }

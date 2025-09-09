@@ -8,15 +8,21 @@ import lombok.Setter;
 @Setter
 public class ProfileOnboardingRequest {
 
-    @NotBlank @Size(min = 2, max = 8)
-    private String name;        // 닉네임(2~8)
+    @NotBlank(message = "닉네임은 2~8자입니다")
+    @Pattern(regexp = "^.{2,}$",  message = "닉네임은 최소 2자 이상이어야 합니다")
+    @Pattern(regexp = "^.{0,8}$", message = "닉네임은 최대 8자까지 가능합니다")
+    private String name;
 
-    @NotBlank
-    private String department;  // 학과(프론트에서 선택하여 텍스트로 전달)
+    @NotBlank(message = "학과는 필수입니다")
+    private String department;
 
-    @NotNull @Min(15) @Max(25)
-    private String studentNo;   // 학번(15~25)
+    @NotBlank(message = "학번은 필수입니다")
+    @Pattern(regexp = "^(1[5-9]|2[0-9])$", message = "학번은 15 이상이어야 합니다")
+    @Pattern(regexp = "^(0[0-9]|1[0-9]|2[0-5])$", message = "학번은 25 이하여야 합니다")
+    private String studentNo;
 
-    @NotNull @Min(1990) @Max(2006)
-    private Integer birthYear;  // 출생연도(1990~2006)
+    @NotNull(message = "출생연도는 1990~2006입니다")
+    @Min(value = 1990, message = "출생연도는 1990 이상이어야 합니다")
+    @Max(value = 2006, message = "출생연도는 2006 이하여야 합니다")
+    private Integer birthYear;
 }

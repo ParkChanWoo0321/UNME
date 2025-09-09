@@ -22,8 +22,10 @@ public class EventService {
     public Map<String, Object> redeem(UUID userId, String code){
         String normalized = code == null ? "" : code.trim().toUpperCase();
         if (normalized.isBlank()) throw new ApiException(ErrorCode.VALIDATION_ERROR);
+
         int changed = codeRepo.markUsedIfUsable(normalized, LocalDateTime.now());
-        if (changed == 0) throw new ApiException(ErrorCode.NOT_FOUND);
+        if (changed == 0) throw new ApiException(ErrorCode.COUPON_INVALID_OR_EXPIRED);
+
         var user = userRepo.findById(userId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         user.setMatchCredits(user.getMatchCredits() + 3);
         return Map.of("ok", true, "creditsAfter", user.getMatchCredits());

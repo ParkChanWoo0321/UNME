@@ -9,12 +9,7 @@ import java.util.UUID;
 
 public interface SignalRepository extends JpaRepository<Signal, UUID> {
     Optional<Signal> findBySenderAndReceiver(User sender, User receiver);
-
     List<Signal> findAllBySenderOrderByCreatedAtDesc(User sender);
     List<Signal> findAllByReceiverOrderByCreatedAtDesc(User receiver);
-
-    List<Signal> findAllBySenderAndStatusOrderByCreatedAtDesc(User sender, Signal.Status status);
-    List<Signal> findAllByReceiverAndStatusOrderByCreatedAtDesc(User receiver, Signal.Status status);
-
     List<Signal> findAllBySender(User sender);
 }

@@ -33,8 +33,6 @@ public class User extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
-    private String email;
-
     @Column(name = "name", length = 8)
     private String name;
 
@@ -45,9 +43,6 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "birth_year")
     private Integer birthYear;
-
-    @Column(name = "traits_json", columnDefinition = "TEXT")
-    private String traitsJson;
 
     @Column(name = "profile_complete", nullable = false)
     private boolean profileComplete;
@@ -61,12 +56,12 @@ public class User extends BaseTimeEntity {
     @Column(name = "profile_image_url")
     private String profileImageUrl;
 
-    @Column(name = "dating_style_summary", columnDefinition = "TEXT")
-    private String datingStyleSummary;
-
     @Column(name = "dating_style_answers_json", columnDefinition = "TEXT")
     private String datingStyleAnswersJson;
 
     @Column(name = "dating_style_completed", nullable = false, columnDefinition = "boolean default false")
     private boolean datingStyleCompleted;
+
+    @Column(name = "dating_style_summary", columnDefinition = "TEXT")
+    private String styleSummary;
 }

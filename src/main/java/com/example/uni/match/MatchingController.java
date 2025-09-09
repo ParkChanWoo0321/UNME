@@ -53,13 +53,14 @@ public class MatchingController {
         return ResponseEntity.ok(matchingService.acceptSignal(UUID.fromString(principal), signalId));
     }
 
-    /** 보낸/받은 목록 */
+    /** 신호 보낸 목록 */
     @GetMapping("/signals/sent")
     public ResponseEntity<?> listSent(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.listSentSignals(UUID.fromString(principal)));
     }
 
+    /** 신호 받은 목록 */
     @GetMapping("/signals/received")
     public ResponseEntity<?> listReceived(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){

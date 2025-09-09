@@ -36,7 +36,7 @@ public class MatchingService {
         if (!me.isProfileComplete() || me.getGender() == null)
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (me.getMatchCredits() < 1)
-            throw new ApiException(ErrorCode.QUOTA_EXCEEDED);
+            throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
 
         me.setMatchCredits(me.getMatchCredits() - 1);
 
@@ -64,7 +64,7 @@ public class MatchingService {
                 .build();
     }
 
-    /** 신호 보내기(멱등) + 실시간 알림 */
+    /** 신호 보내기(재발송 허용: CANCELED/DECLINED → SENT로 복구) + 실시간 알림 */
     @Transactional
     public Map<String,Object> sendSignal(UUID meId, UUID targetId){
         if (meId.equals(targetId)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
@@ -81,9 +81,11 @@ public class MatchingService {
                 || chatRoomRepository.findByUserBAndUserA(target, me).isPresent();
         if (hasRoom) throw new ApiException(ErrorCode.CONFLICT);
 
-        Signal existing = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
-        if (existing == null) {
-            existing = signalRepository.save(Signal.builder()
+        Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
+
+        if (s == null) {
+            // 최초 발송
+            s = signalRepository.save(Signal.builder()
                     .sender(me).receiver(target).status(Signal.Status.SENT).build());
 
             notifier.toUser(
@@ -91,9 +93,28 @@ public class MatchingService {
                     RealtimeNotifier.Q_SIGNAL,
                     Map.of("type","SENT","fromUser", publicUserCard(me))
             );
+
+        } else {
+            // 기존 row 존재
+            if (s.getStatus() == Signal.Status.MUTUAL) {
+                // 이미 매칭된 상태에서는 새 신호 불가
+                throw new ApiException(ErrorCode.CONFLICT);
+            }
+            if (s.getStatus() != Signal.Status.SENT) {
+                // CANCELED/DECLINED 등 → 재발송 허용: SENT로 되돌리고 알림 재전송
+                s.setStatus(Signal.Status.SENT);
+                signalRepository.save(s);
+
+                notifier.toUser(
+                        target.getId(),
+                        RealtimeNotifier.Q_SIGNAL,
+                        Map.of("type","SENT","fromUser", publicUserCard(me))
+                );
+            }
+            // s.getStatus()==SENT 인 경우는 멱등: 변경/알림 없음
         }
 
-        return Map.of("signalId", existing.getId(), "status", existing.getStatus().name());
+        return Map.of("signalId", s.getId(), "status", s.getStatus().name());
     }
 
     /** 신호 취소(보낸 사람) */
@@ -196,7 +217,7 @@ public class MatchingService {
         return out;
     }
 
-    /** 후보/신호/매칭 공통 공개 카드 (학과/학번/나이/프로필사진/성향요약) */
+    /** 후보/신호/매칭 공통 공개 카드 */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
@@ -208,10 +229,6 @@ public class MatchingService {
 
         String img = u.getProfileImageUrl();
         if (img != null && !img.isBlank()) card.put("profileImageUrl", img);
-
-        if (u.getTraitsJson() != null && !u.getTraitsJson().isBlank()) {
-            card.put("traits", u.getTraitsJson());
-        }
         return card;
     }
 

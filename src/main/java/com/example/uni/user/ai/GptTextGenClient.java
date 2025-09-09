@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -43,21 +44,30 @@ public class GptTextGenClient implements TextGenClient {
                 "temperature", 0.7
         );
 
-        var resp = client().post()
-                .uri("/v1/chat/completions")
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(body)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
-
         try {
-            var choices = (java.util.List<Map<String,Object>>) resp.get("choices");
-            var msg = (Map<String,Object>) choices.get(0).get("message");
-            return String.valueOf(msg.get("content")).trim();
-        } catch (Exception e) {
-            return "응답을 바탕으로 편안한 소통과 상호 배려를 중시하는 데이팅 성향으로 보입니다.";
+            ChatCompletionResponse resp = client().post()
+                    .uri("/v1/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .bodyToMono(ChatCompletionResponse.class)
+                    .block();
+
+            String content = Optional.ofNullable(resp)
+                    .map(ChatCompletionResponse::choices)
+                    .filter(list -> !list.isEmpty())
+                    .map(java.util.List::getFirst)   // JDK 21
+                    .map(Choice::message)
+                    .map(Message::content)
+                    .map(String::trim)
+                    .orElse(null);
+
+            if (content != null && !content.isBlank()) return content;
+        } catch (Exception ignore) {
+            // fall through to fallback
         }
+
+        return "응답을 바탕으로 편안한 소통과 상호 배려를 중시하는 데이팅 성향으로 보입니다.";
     }
 
     private String buildPrompt(Map<String,String> a){
@@ -74,12 +84,17 @@ public class GptTextGenClient implements TextGenClient {
                 {"상호작용","분위기 주도/리드(a)","경청/맞춤(b)"}
         };
         StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 요약해줘.\n\n");
-        for (int i=0;i<10;i++){
-            String sel = a.get("q"+(i+1));
-            sb.append(i+1).append(". ").append(qs[i][0]).append(" = ")
-                    .append("a".equalsIgnoreCase(sel)?qs[i][1]:qs[i][2]).append("\n");
+        for (int i = 0; i < 10; i++) {
+            String sel = a.get("q" + (i + 1));
+            sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
+                    .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
         sb.append("\n출력: 2~3문장 한국어 요약(불필요한 머리말/목차/이모지 금지).");
         return sb.toString();
     }
+
+    /** ---- 최소 DTO (응답에서 쓰는 부분만) ---- */
+    private record ChatCompletionResponse(java.util.List<Choice> choices) {}
+    private record Choice(Message message) {}
+    private record Message(String role, String content) {}
 }
