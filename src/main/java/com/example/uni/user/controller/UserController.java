@@ -6,19 +6,16 @@ import com.example.uni.user.dto.DatingStyleRequest;
 import com.example.uni.user.dto.ProfileOnboardingRequest;
 import com.example.uni.user.dto.UserProfileResponse;
 import com.example.uni.user.service.DatingStyleService;
-import com.example.uni.user.service.LocalImageStorageService;
 import com.example.uni.user.service.UserService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 import java.util.UUID;
@@ -29,7 +26,6 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
-    private final LocalImageStorageService storage;
     private final DatingStyleService datingStyleService;
 
     private UUID uid(String principal){ return UUID.fromString(principal); }
@@ -84,37 +80,7 @@ public class UserController {
         return ResponseEntity.ok(userService.toDetailCard(u));
     }
 
-    /** 프로필 사진 업로드 */
-    @PostMapping(value = "/profile/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<UserProfileResponse> uploadPhoto(
-            @AuthenticationPrincipal String principal,
-            @RequestPart("file") MultipartFile file
-    ) throws Exception {
-        UUID me = uid(principal);
-        User u = userService.get(me);
-        String oldUrl = u.getProfileImageUrl();
-        String newUrl = storage.storeProfileImage(me, file);
-        u.setProfileImageUrl(newUrl);
-        userService.save(u);
-        if (oldUrl != null) storage.deleteByUrl(oldUrl);
-        return ResponseEntity.ok(userService.toResponse(u));
-    }
-
-    /** 프로필 사진 삭제 */
-    @DeleteMapping("/profile/photo")
-    public ResponseEntity<?> deletePhoto(@AuthenticationPrincipal String principal) {
-        UUID me = uid(principal);
-        User u = userService.get(me);
-        if (u.getProfileImageUrl() != null) {
-            storage.deleteByUrl(u.getProfileImageUrl());
-            u.setProfileImageUrl(null);
-            userService.save(u);
-        }
-        return ResponseEntity.ok(Map.of("ok", true));
-    }
-
-    @Getter
-    @Setter
+    @Getter @Setter
     public static class GenderRequest {
         @NotNull
         private Gender gender;

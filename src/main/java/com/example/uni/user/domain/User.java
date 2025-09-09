@@ -53,9 +53,6 @@ public class User extends BaseTimeEntity {
     @Version
     private Long version;
 
-    @Column(name = "profile_image_url")
-    private String profileImageUrl;
-
     @Column(name = "dating_style_answers_json", columnDefinition = "TEXT")
     private String datingStyleAnswersJson;
 

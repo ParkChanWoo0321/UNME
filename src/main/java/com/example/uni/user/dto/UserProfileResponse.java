@@ -18,6 +18,5 @@ public class UserProfileResponse {
     private Gender gender;
     private boolean profileComplete;
     private int matchCredits;
-    private String profileImageUrl;
     private String styleSummary;
 }

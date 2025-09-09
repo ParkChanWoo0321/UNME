@@ -30,7 +30,7 @@ public class UserService {
         return !userRepository.existsByNameIgnoreCase(name);
     }
 
-    /** 온보딩: 닉네임/학과/학번/출생연도 저장 + 프로필 완료 + 크레딧 2(없을 때만) */
+    /** 온보딩 */
     @Transactional
     public User completeProfile(UUID userId, ProfileOnboardingRequest p) {
         User u = get(userId);
@@ -78,7 +78,6 @@ public class UserService {
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
-                .profileImageUrl(u.getProfileImageUrl())
                 .styleSummary(u.getStyleSummary())
                 .build();
     }
@@ -91,13 +90,10 @@ public class UserService {
         card.put("studentNo", u.getStudentNo());
         Integer age = ageOf(u);
         if (age != null) card.put("age", age);
-        if (u.getProfileImageUrl() != null && !u.getProfileImageUrl().isBlank()) {
-            card.put("profileImageUrl", u.getProfileImageUrl());
-        }
         return card;
     }
 
-    /** 상세보기 카드용 — 요약 포함 (상세에서만 노출) */
+    /** 상세보기 카드용 — 요약 포함 */
     public Map<String,Object> toDetailCard(User u){
         Map<String,Object> card = toPublicCard(u);
         card.put("styleSummary", u.getStyleSummary());
@@ -105,5 +101,5 @@ public class UserService {
     }
 
     @Transactional
-    public void save(User u){ userRepository.save(u); } // 반환값 미사용 경고 제거
+    public void save(User u){ userRepository.save(u); }
 }

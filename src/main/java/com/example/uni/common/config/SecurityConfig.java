@@ -45,7 +45,6 @@ public class SecurityConfig {
                                 "/auth/kakao/callback",
                                 "/auth/logout",
                                 "/ws/**",
-                                "/files/**",
                                 "/error",
                                 "/favicon.ico",
                                 "/actuator/**",
