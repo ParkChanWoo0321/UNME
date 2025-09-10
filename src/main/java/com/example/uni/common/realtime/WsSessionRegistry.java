@@ -6,10 +6,8 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** userId ↔ sessionIds 매핑을 직접 관리 */
 @Component
 public class WsSessionRegistry {
-    // userId -> sessionId Set
     private final ConcurrentHashMap<String, Set<String>> map = new ConcurrentHashMap<>();
 
     public void add(String userId, String sessionId) {
@@ -26,9 +24,5 @@ public class WsSessionRegistry {
 
     public Set<String> sessions(String userId) {
         return map.getOrDefault(userId, Collections.emptySet());
-    }
-
-    public Set<String> users() {
-        return map.keySet();
     }
 }

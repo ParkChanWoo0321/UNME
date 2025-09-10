@@ -99,7 +99,4 @@ public class UserService {
         card.put("styleSummary", u.getStyleSummary());
         return card;
     }
-
-    @Transactional
-    public void save(User u){ userRepository.save(u); }
 }

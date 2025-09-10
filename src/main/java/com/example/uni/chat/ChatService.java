@@ -19,7 +19,6 @@ public class ChatService {
     private final ChatRoomRepository roomRepo;
     private final UserRepository userRepo;
 
-    /** 상호 수락 이후 방 생성/재사용: 생성 시 accepted=true (동시성 안전) */
     @Transactional
     public ChatRoom createOrReuseRoom(UUID meId, UUID peerId){
         User me   = userRepo.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));

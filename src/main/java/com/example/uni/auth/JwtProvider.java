@@ -9,54 +9,51 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.time.Instant;
 import java.util.Date;
-import java.util.Map;
 
 @Component
 public class JwtProvider {
 
+    public enum TokenType { ACCESS, REFRESH }
+
     private final Key key;
-    private final long ttlMillis;
+    private final long accessTtlMillis;
+    private final long refreshTtlMillis;
 
     public JwtProvider(
             @Value("${jwt.secret:change-me-change-me-change-me-change-me}") String secret,
-            @Value("${jwt.ttl-seconds:2592000}") long ttlSeconds // 30d
+            @Value("${jwt.access-ttl-seconds:1800}") long accessTtlSeconds,    // 30분
+            @Value("${jwt.refresh-ttl-seconds:2592000}") long refreshTtlSeconds // 30일
     ) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.ttlMillis = ttlSeconds * 1000L;
+        this.accessTtlMillis = accessTtlSeconds * 1000L;
+        this.refreshTtlMillis = refreshTtlSeconds * 1000L;
     }
 
-    /** JWT 검증 + subject 추출 */
-    public String validateAndGetSubject(String jwt) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(jwt)
-                .getBody();
+    public String generateAccess(String subject)  { return generate(subject, TokenType.ACCESS); }
+    public String generateRefresh(String subject) { return generate(subject, TokenType.REFRESH); }
+
+    private String generate(String subject, TokenType typ) {
+        Instant now = Instant.now();
+        long ttl = (typ == TokenType.ACCESS) ? accessTtlMillis : refreshTtlMillis;
+        return Jwts.builder()
+                .setSubject(subject)
+                .claim("typ", typ.name())
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(now.plusMillis(ttl)))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String validateAndGetSubject(String jwt, TokenType expected) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(jwt).getBody();
+        String actual = String.valueOf(claims.get("typ"));
+        if (!expected.name().equals(actual)) throw new JwtException("invalid token type");
         return claims.getSubject();
     }
 
-    /** subject 만 넣어 발급 */
-    public String generateToken(String subject) {
-        return generate(subject, null);
+    public String validateAccessAndGetSubject(String jwt) {
+        return validateAndGetSubject(jwt, TokenType.ACCESS);
     }
 
-    /** subject + kakaoId(claim) 넣어 발급 */
-    public String generate(String subject, String kakaoId) {
-        Instant now = Instant.now();
-        JwtBuilder builder = Jwts.builder()
-                .setSubject(subject)
-                .setIssuedAt(Date.from(now))
-                .setExpiration(Date.from(now.plusMillis(ttlMillis)));
-
-        if (kakaoId != null) {
-            builder.addClaims(Map.of("kakaoId", kakaoId));
-        }
-
-        return builder.signWith(key, SignatureAlgorithm.HS256).compact();
-    }
-
-    /** 필요 시 파싱용 */
-    public Jws<Claims> parse(String token) {
-        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token);
-    }
+    public long getAccessTtlSeconds() { return accessTtlMillis / 1000L; }
 }

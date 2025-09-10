@@ -43,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/auth/kakao/login",
                                 "/auth/kakao/callback",
+                                "/auth/refresh",      // ★ refresh 허용
                                 "/auth/logout",
                                 "/ws/**",
                                 "/error",
@@ -65,7 +66,7 @@ public class SecurityConfig {
                 .filter(s -> !s.isBlank())
                 .toList();
         cfg.setAllowedOriginPatterns(origins);
-        cfg.setAllowCredentials(true);
+        cfg.setAllowCredentials(true); // refresh 쿠키 전송 필요
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setExposedHeaders(List.of("Set-Cookie","Authorization","Location"));

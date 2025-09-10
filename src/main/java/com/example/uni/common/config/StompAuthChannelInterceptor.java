@@ -36,13 +36,12 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
             if (auth != null && auth.regionMatches(true, 0, "Bearer ", 0, 7)) {
                 String jwt = auth.substring(7).trim();
-                final String userId = jwtProvider.validateAndGetSubject(jwt);
+                final String userId = jwtProvider.validateAccessAndGetSubject(jwt);
 
                 var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
                 accessor.setUser(principal);
                 accessor.setLeaveMutable(true);
 
-                // 세션 등록
                 String sid = accessor.getSessionId();
                 wsSessions.add(userId, sid);
                 log.debug("WS CONNECT as {} (session={})", userId, sid);

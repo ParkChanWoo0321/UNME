@@ -19,16 +19,16 @@ public class OAuthService {
 
     @Value("${kakao.redirect-uri}")
     private String redirectUri;
+
     public String loginWithAuthorizationCode(String code) {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
         final String kakaoId = String.valueOf(me.getId());
         final Gender resolvedGender = resolveGender(me);
+
         User user = userRepository.findByKakaoId(kakaoId)
                 .map(u -> {
-                    if (resolvedGender != null && u.getGender() == null) {
-                        u.setGender(resolvedGender);
-                    }
+                    if (resolvedGender != null && u.getGender() == null) u.setGender(resolvedGender);
                     return u;
                 })
                 .orElseGet(() -> User.builder()
@@ -39,7 +39,23 @@ public class OAuthService {
                         .build());
         user = userRepository.save(user);
         UUID uid = user.getId();
-        return jwtProvider.generateToken(uid.toString());
+
+        return jwtProvider.generateRefresh(uid.toString());
+    }
+
+    public String issueAccessToken(String userId) {
+        return jwtProvider.generateAccess(userId);
+    }
+
+    public long getAccessTtlSeconds() { return jwtProvider.getAccessTtlSeconds(); }
+
+    public String validateRefreshAndGetUserId(String refreshJwt) {
+        return jwtProvider.validateAndGetSubject(refreshJwt, JwtProvider.TokenType.REFRESH);
+    }
+
+    public String rotateRefresh(String oldRefresh) {
+        String userId = jwtProvider.validateAndGetSubject(oldRefresh, JwtProvider.TokenType.REFRESH);
+        return jwtProvider.generateRefresh(userId);
     }
 
     private Gender resolveGender(KakaoOAuthClient.KakaoUser me) {

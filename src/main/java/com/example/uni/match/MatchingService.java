@@ -111,7 +111,6 @@ public class MatchingService {
                         Map.of("type","SENT","fromUser", publicUserCard(me))
                 );
             }
-            // s.getStatus()==SENT 인 경우는 멱등: 변경/알림 없음
         }
 
         return Map.of("signalId", s.getId(), "status", s.getStatus().name());
@@ -217,7 +216,7 @@ public class MatchingService {
         return out;
     }
 
-    /** 후보/신호/매칭 공통 공개 카드 */
+    /** 후보/신호/매칭 공통 공개 카드 (사진 관련 제거) */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
@@ -227,8 +226,6 @@ public class MatchingService {
         Integer age = (u.getBirthYear() == null) ? null : (Year.now().getValue() - u.getBirthYear());
         if (age != null) card.put("age", age);
 
-        String img = u.getProfileImageUrl();
-        if (img != null && !img.isBlank()) card.put("profileImageUrl", img);
         return card;
     }
 
