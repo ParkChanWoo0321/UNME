@@ -3,7 +3,6 @@ package com.example.uni.common.config;
 import com.example.uni.auth.JwtProvider;
 import com.example.uni.common.realtime.WsSessionRegistry;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
@@ -13,9 +12,10 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
@@ -25,37 +25,42 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompHeaderAccessor acc = StompHeaderAccessor.wrap(message);
 
-        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            log.debug("STOMP CONNECT native headers = {}", accessor.toNativeHeaderMap());
+        if (StompCommand.CONNECT.equals(acc.getCommand())) {
+            List<String> vals = new ArrayList<>();
+            List<String> a1 = acc.getNativeHeader("Authorization");
+            List<String> a2 = acc.getNativeHeader("authorization");
+            if (a1 != null) vals.addAll(a1);
+            if (a2 != null) vals.addAll(a2);
+            String raw = vals.isEmpty() ? null : String.join(" ", vals).trim();
+            if (raw == null || raw.length() < 7) throw new IllegalArgumentException("Missing Authorization");
+            String prefix = raw.substring(0, Math.min(7, raw.length()));
+            if (!prefix.equalsIgnoreCase("Bearer ")) throw new IllegalArgumentException("Bearer required");
+            String jwt = raw.substring(7).replaceAll("\\s+", "");
+            String userId = jwtProvider.validateAccessAndGetSubject(jwt);
 
-            String auth = accessor.getFirstNativeHeader("Authorization");
-            if (auth == null) auth = accessor.getFirstNativeHeader("authorization");
-            if (auth != null) auth = auth.trim();
+            var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
+            acc.setUser(principal);
+            acc.setLeaveMutable(true);
 
-            if (auth != null && auth.regionMatches(true, 0, "Bearer ", 0, 7)) {
-                String jwt = auth.substring(7).trim();
-                final String userId = jwtProvider.validateAccessAndGetSubject(jwt);
+            String sid = acc.getSessionId();
+            if (sid != null) wsSessions.add(userId, sid);
+            return message;
+        }
 
-                var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
-                accessor.setUser(principal);
-                accessor.setLeaveMutable(true);
-
-                String sid = accessor.getSessionId();
-                wsSessions.add(userId, sid);
-                log.debug("WS CONNECT as {} (session={})", userId, sid);
-            } else {
-                throw new IllegalArgumentException("Missing Authorization header in STOMP CONNECT");
-            }
-        } else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
-            var p = accessor.getUser();
+        if (StompCommand.DISCONNECT.equals(acc.getCommand())) {
+            var p = acc.getUser();
             if (p != null) {
                 String userId = p.getName();
-                String sid = accessor.getSessionId();
-                wsSessions.remove(userId, sid);
-                log.debug("WS DISCONNECT {} (session={})", userId, sid);
+                String sid = acc.getSessionId();
+                if (userId != null && sid != null) wsSessions.remove(userId, sid);
             }
+            return message;
+        }
+
+        if (StompCommand.SUBSCRIBE.equals(acc.getCommand()) || StompCommand.SEND.equals(acc.getCommand())) {
+            if (acc.getUser() == null) throw new IllegalArgumentException("Unauthenticated");
         }
         return message;
     }
