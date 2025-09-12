@@ -45,7 +45,6 @@ public class SecurityConfig {
                                 "/auth/kakao/callback",
                                 "/auth/refresh",
                                 "/auth/logout",
-                                "/auth/dev/token",
                                 "/ws/**",
                                 "/error",
                                 "/favicon.ico",

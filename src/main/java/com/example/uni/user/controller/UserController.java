@@ -1,20 +1,13 @@
 package com.example.uni.user.controller;
 
-import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
-import com.example.uni.user.dto.DatingStyleRequest;
-import com.example.uni.user.dto.ProfileOnboardingRequest;
+import com.example.uni.user.dto.UserOnboardingRequest;
 import com.example.uni.user.dto.UserProfileResponse;
-import com.example.uni.user.service.DatingStyleService;
 import com.example.uni.user.service.UserService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.Setter;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -26,7 +19,6 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
-    private final DatingStyleService datingStyleService;
 
     private UUID uid(String principal){ return UUID.fromString(principal); }
 
@@ -34,27 +26,21 @@ public class UserController {
     @GetMapping("/name/check")
     public ResponseEntity<?> checkName(@RequestParam("name") String name) {
         boolean available = userService.isNameAvailable(name);
-        return ResponseEntity.ok(Map.of("available", available));
+        String message = available ? "사용 가능한 닉네임입니다." : "이미 사용 중인 닉네임입니다.";
+        return ResponseEntity.ok(Map.of(
+                "available", available,
+                "message", message
+        ));
     }
 
-    /** 프로필 온보딩(이름/학과/학번/출생연도) */
+    /** 내 정보 입력 통합 (기본정보 + 성별 + 성향테스트) */
     @PutMapping("/profile")
     public ResponseEntity<UserProfileResponse> profile(
             @AuthenticationPrincipal String principal,
-            @Valid @RequestBody ProfileOnboardingRequest req
+            @Valid @RequestBody UserOnboardingRequest req
     ){
         User u = userService.completeProfile(uid(principal), req);
         return ResponseEntity.ok(userService.toResponse(u));
-    }
-
-    /** 성별 1회 지정 */
-    @PutMapping("/gender")
-    public ResponseEntity<?> setGender(
-            @AuthenticationPrincipal String principal,
-            @Valid @RequestBody GenderRequest body
-    ){
-        userService.setGender(uid(principal), body.getGender());
-        return ResponseEntity.ok(Map.of("ok", true));
     }
 
     /** 현재 프로필 조회 */
@@ -64,25 +50,14 @@ public class UserController {
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
-    /** 데이팅 스타일 제출(가입 1회) */
-    @PostMapping("/dating-style")
-    public ResponseEntity<?> submitDatingStyle(
+    /** 한 줄 소개 작성/수정 */
+    @PutMapping("/introduce")
+    public ResponseEntity<UserProfileResponse> updateIntroduce(
             @AuthenticationPrincipal String principal,
-            @Validated @RequestBody DatingStyleRequest req
+            @RequestBody Map<String,String> body
     ){
-        return ResponseEntity.ok(datingStyleService.complete(uid(principal), req));
-    }
-
-    /** 내 상세보기(요약 포함) */
-    @GetMapping("/detail")
-    public ResponseEntity<?> myDetail(@AuthenticationPrincipal String principal){
-        User u = userService.get(uid(principal));
-        return ResponseEntity.ok(userService.toDetailCard(u));
-    }
-
-    @Getter @Setter
-    public static class GenderRequest {
-        @NotNull
-        private Gender gender;
+        String introduce = body.get("introduce");
+        User u = userService.updateIntroduce(uid(principal), introduce);
+        return ResponseEntity.ok(userService.toResponse(u));
     }
 }

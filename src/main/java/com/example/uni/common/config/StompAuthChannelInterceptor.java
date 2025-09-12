@@ -12,9 +12,7 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -28,16 +26,15 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         StompHeaderAccessor acc = StompHeaderAccessor.wrap(message);
 
         if (StompCommand.CONNECT.equals(acc.getCommand())) {
-            List<String> vals = new ArrayList<>();
-            List<String> a1 = acc.getNativeHeader("Authorization");
-            List<String> a2 = acc.getNativeHeader("authorization");
-            if (a1 != null) vals.addAll(a1);
-            if (a2 != null) vals.addAll(a2);
-            String raw = vals.isEmpty() ? null : String.join(" ", vals).trim();
+            String raw = acc.getFirstNativeHeader("Authorization");
+            if (raw == null) raw = acc.getFirstNativeHeader("authorization");
+            raw = (raw == null) ? null : raw.trim();
             if (raw == null || raw.length() < 7) throw new IllegalArgumentException("Missing Authorization");
-            String prefix = raw.substring(0, Math.min(7, raw.length()));
-            if (!prefix.equalsIgnoreCase("Bearer ")) throw new IllegalArgumentException("Bearer required");
+
+            if (!raw.regionMatches(true, 0, "Bearer ", 0, 7))
+                throw new IllegalArgumentException("Bearer required");
             String jwt = raw.substring(7).replaceAll("\\s+", "");
+
             String userId = jwtProvider.validateAccessAndGetSubject(jwt);
 
             var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());

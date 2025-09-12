@@ -8,7 +8,7 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class UserProfileResponse {
+public class PeerDetailResponse {
     private UUID userId;
     private String name;
     private String department;
@@ -16,9 +16,6 @@ public class UserProfileResponse {
     private Integer birthYear;
     private Integer age;
     private Gender gender;
-    private boolean profileComplete;
-    private int matchCredits;
     private Integer typeId;
-    private String styleSummary;
     private String introduce;
 }

@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Year;
 import java.util.*;
 
 @Service
@@ -84,7 +83,6 @@ public class MatchingService {
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
 
         if (s == null) {
-            // 최초 발송
             s = signalRepository.save(Signal.builder()
                     .sender(me).receiver(target).status(Signal.Status.SENT).build());
 
@@ -95,13 +93,10 @@ public class MatchingService {
             );
 
         } else {
-            // 기존 row 존재
             if (s.getStatus() == Signal.Status.MUTUAL) {
-                // 이미 매칭된 상태에서는 새 신호 불가
                 throw new ApiException(ErrorCode.CONFLICT);
             }
             if (s.getStatus() != Signal.Status.SENT) {
-                // CANCELED/DECLINED 등 → 재발송 허용: SENT로 되돌리고 알림 재전송
                 s.setStatus(Signal.Status.SENT);
                 signalRepository.save(s);
 
@@ -216,16 +211,13 @@ public class MatchingService {
         return out;
     }
 
-    /** 후보/신호/매칭 공통 공개 카드 (사진 관련 제거) */
+    /** 후보/신호/매칭 공통 공개 카드 (이름, 학과, 한줄소개만) */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
-        card.put("userId", u.getId());
+        card.put("name", u.getName());
         card.put("department", u.getDepartment());
-        card.put("studentNo", u.getStudentNo());
-
-        Integer age = (u.getBirthYear() == null) ? null : (Year.now().getValue() - u.getBirthYear());
-        if (age != null) card.put("age", age);
-
+        card.put("introduce", u.getIntroduce());
+        card.put("typeId", u.getTypeId());
         return card;
     }
 

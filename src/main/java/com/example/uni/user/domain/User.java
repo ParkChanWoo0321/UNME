@@ -29,7 +29,6 @@ public class User extends BaseTimeEntity {
     @Column(name = "kakao_id", nullable = false)
     private String kakaoId;
 
-    /** 온보딩 전 가입 허용을 위해 null 허용 */
     @Enumerated(EnumType.STRING)
     private Gender gender;
 
@@ -61,4 +60,10 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "dating_style_summary", columnDefinition = "TEXT")
     private String styleSummary;
+
+    @Column(name = "dating_style_type_id")
+    private Integer typeId;
+
+    @Column(name = "introduce", length = 100)
+    private String introduce;
 }

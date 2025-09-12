@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -17,22 +16,11 @@ public class RealtimeNotifier {
     public static final String Q_MATCH  = "/queue/match";
 
     private final SimpMessagingTemplate ws;
-    private final WsSessionRegistry wsSessions;
 
+    /** 브라우저는 /user/queue/... 로만 구독. 내부에선 convertAndSendToUser로 단일 전송 */
     public void toUser(UUID userId, String dest, Object payload) {
         String pure = dest.startsWith("/user/") ? dest.substring(5) : dest;
-
-        Set<String> sids = wsSessions.sessions(userId.toString());
-        log.info("[WS] SEND user={} dest={} sessionCount={} sessions={}",
-                userId, pure, sids.size(), sids);
-
-        if (sids.isEmpty()) {
-            ws.convertAndSendToUser(userId.toString(), pure, payload);
-            return;
-        }
-        for (String sid : sids) {
-            String sessionDest = pure + "-user" + sid;
-            ws.convertAndSend(sessionDest, payload);
-        }
+        log.info("[WS] SEND user={} dest={}", userId, pure);
+        ws.convertAndSendToUser(userId.toString(), pure, payload);
     }
 }

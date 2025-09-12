@@ -38,10 +38,14 @@ public class GptTextGenClient implements TextGenClient {
                 "model", model,
                 "messages", new Object[]{
                         Map.of("role","system","content",
-                                "너는 데이팅 성향을 간결하게 요약하는 한국어 어시스턴트다. 사용자의 A/B 응답을 근거로, 성향/데이트 선호/관계 가치관을 2~3문장으로 자연스럽게 요약해. 과장·클리셰·목차·점수·헤더 금지, 친근한 존댓말."),
+                                "너는 데이팅 성향의 '특징 단락'만 생성하는 한국어 어시스턴트다. " +
+                                        "사용자의 A/B 응답을 근거로 관계 맥락에서 드러나는 강점 2~3가지를 " +
+                                        "한 단락(문장 1~2개), 총 180~220자 내외로 작성해라. " +
+                                        "과장·진단·판단·조언·목차·헤더·이모지·줄바꿈 금지. 중립적이고 자연스러운 존댓말로."),
                         Map.of("role","user","content", prompt)
                 },
-                "temperature", 0.7
+                "temperature", 0.5,
+                "max_tokens", 220
         );
 
         try {
@@ -56,18 +60,23 @@ public class GptTextGenClient implements TextGenClient {
             String content = Optional.ofNullable(resp)
                     .map(ChatCompletionResponse::choices)
                     .filter(list -> !list.isEmpty())
-                    .map(java.util.List::getFirst)   // JDK 21
+                    .map(java.util.List::getFirst)
                     .map(Choice::message)
                     .map(Message::content)
                     .map(String::trim)
                     .orElse(null);
 
-            if (content != null && !content.isBlank()) return content;
+            if (content != null && !content.isBlank()) {
+                // 줄바꿈/중복 공백 제거 후 즉시 반환
+                return content.replaceAll("[\\r\\n]+", " ")
+                        .replaceAll("\\s{2,}", " ")
+                        .trim();
+            }
         } catch (Exception ignore) {
-            // fall through to fallback
         }
 
-        return "응답을 바탕으로 편안한 소통과 상호 배려를 중시하는 데이팅 성향으로 보입니다.";
+        // Fallback
+        return "응답을 보면 편안한 소통과 상호 배려를 중시하며, 상황에 맞게 분위기를 살리고 상대의 감정을 세심하게 살피는 편입니다. 관계에서는 신뢰를 바탕으로 안정감을 주고, 상대가 편하게 표현할 수 있도록 배려하는 강점이 돋보입니다.";
     }
 
     private String buildPrompt(Map<String,String> a){
@@ -83,13 +92,13 @@ public class GptTextGenClient implements TextGenClient {
                 {"첫 대화","가볍고 친근한 질문(a)","가치관 등 깊은 질문(b)"},
                 {"상호작용","분위기 주도/리드(a)","경청/맞춤(b)"}
         };
-        StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 요약해줘.\n\n");
+        StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 요약의 근거로 사용해.\n\n");
         for (int i = 0; i < 10; i++) {
             String sel = a.get("q" + (i + 1));
             sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
                     .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
-        sb.append("\n출력: 2~3문장 한국어 요약(불필요한 머리말/목차/이모지 금지).");
+        sb.append("\n출력 형식: 한 단락(문장 1~2개), 180~220자. 강점 2~3개 중심. 조언/목차/헤더/이모지/줄바꿈 금지.");
         return sb.toString();
     }
 
