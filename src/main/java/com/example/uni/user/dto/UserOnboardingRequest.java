@@ -21,8 +21,11 @@ public class UserOnboardingRequest {
     private String studentNo;
 
     // 두 자리: 90~99, 00~06
-    @NotBlank(message = "년생을 입력하세요.")
-    @Pattern(regexp = "^(9\\d|0[0-6])$", message = "나이를 확인해주세요.")
+    @NotBlank(message = "출생 연도를 입력하세요.")
+    @Pattern(
+            regexp = "^(199[0-9]|200[0-6])$",
+            message = "출생 연도는 1990~2006 사이의 4자리여야 합니다."
+    )
     private String birthYear;
 
     @NotNull(message = "성별은 필수입니다")

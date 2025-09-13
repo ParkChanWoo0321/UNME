@@ -62,7 +62,6 @@ public class UserService {
 
         u.setDepartment(req.getDepartment());
         u.setStudentNo(req.getStudentNo());
-        // 두 자리 그대로 저장 ("90" ~ "06")
         u.setBirthYear(req.getBirthYear());
 
         if (u.getGender() != null && u.getGender() != req.getGender()) {

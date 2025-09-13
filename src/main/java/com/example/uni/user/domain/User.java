@@ -48,7 +48,7 @@ public class User extends BaseTimeEntity {
     @Column(name = "student_no")
     private String studentNo;
 
-    @Column(name = "birth_year", length = 2)
+    @Column(name = "birth_year", length = 4)
     private String birthYear;
 
     @Column(name = "profile_complete", nullable = false)
