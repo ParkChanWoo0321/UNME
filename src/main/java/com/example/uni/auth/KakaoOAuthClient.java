@@ -22,8 +22,12 @@ public class KakaoOAuthClient {
     @Value("${kakao.client-secret:}")
     private String clientSecret;
 
+    private WebClient webClient(String base) {
+        return WebClient.builder().baseUrl(base).build();
+    }
+
     public TokenResponse exchangeCodeForToken(String code, String redirectUri) {
-        WebClient wc = WebClient.builder().baseUrl(authBase).build();
+        WebClient wc = webClient(authBase);
         MultiValueMap<String,String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
         form.add("client_id", clientId);
@@ -40,11 +44,21 @@ public class KakaoOAuthClient {
     }
 
     public KakaoUser me(String accessToken) {
-        WebClient wc = WebClient.builder().baseUrl(apiBase).build();
+        WebClient wc = webClient(apiBase);
         return wc.get().uri("/v2/user/me")
                 .headers(h -> h.setBearerAuth(accessToken))
                 .retrieve()
                 .bodyToMono(KakaoUser.class)
+                .block();
+    }
+
+    // 🔹 회원탈퇴 (연결 끊기)
+    public void unlink(String accessToken) {
+        WebClient wc = webClient(apiBase);
+        wc.post().uri("/v1/user/unlink")
+                .headers(h -> h.setBearerAuth(accessToken))
+                .retrieve()
+                .bodyToMono(Void.class)
                 .block();
     }
 
@@ -63,6 +77,7 @@ public class KakaoOAuthClient {
         private Long id;
         @JsonProperty("kakao_account")
         private KakaoAccount kakaoAccount;
+
         @Data
         public static class KakaoAccount {
             @JsonProperty("has_email")
@@ -85,6 +100,5 @@ public class KakaoOAuthClient {
                 private String nickname;
             }
         }
-
     }
 }

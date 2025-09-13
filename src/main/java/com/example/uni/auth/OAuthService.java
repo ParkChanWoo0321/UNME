@@ -20,7 +20,6 @@ public class OAuthService {
     @Value("${kakao.redirect-uri}")
     private String redirectUri;
 
-    // 변경: access와 refresh를 함께 반환
     public Tokens loginWithAuthorizationCode(String code) {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
@@ -51,7 +50,9 @@ public class OAuthService {
         return jwtProvider.generateAccess(userId);
     }
 
-    public long getAccessTtlSeconds() { return jwtProvider.getAccessTtlSeconds(); }
+    public long getAccessTtlSeconds() {
+        return jwtProvider.getAccessTtlSeconds();
+    }
 
     public String validateRefreshAndGetUserId(String refreshJwt) {
         return jwtProvider.validateAndGetSubject(refreshJwt, JwtProvider.TokenType.REFRESH);
@@ -73,6 +74,11 @@ public class OAuthService {
         return null;
     }
 
-    // access + refresh DTO (새 파일 불필요: 내부 record로 정의)
+    // 🔹 회원탈퇴
+    public void unlinkUser(UUID userId, String kakaoAccessToken) {
+        kakao.unlink(kakaoAccessToken);
+        userRepository.deleteById(userId); // 완전 삭제 (soft delete 필요 시 수정)
+    }
+
     public record Tokens(String access, String refresh) {}
 }
