@@ -15,6 +15,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,7 +43,8 @@ public class AuthController {
                 .queryParam("redirect_uri", redirectUri)
                 .queryParam("response_type", "code")
                 .queryParam("state", state)
-                .build(true).toUri();
+                .build() // ★ 인코딩 위임 (build(true) 금지)
+                .toUri();
         return ResponseEntity.status(302).location(authorize).build();
     }
 
@@ -55,11 +58,47 @@ public class AuthController {
         // refresh -> 쿠키 저장
         cookieUtil.setRefreshCookie(response, tokens.refresh());
 
-        // 프론트로 302 리다이렉트 (URL fragment에 access 포함)
-        URI target = UriComponentsBuilder.fromUriString(frontendBase)
-                .path(state.startsWith("/") ? state : "/" + state)
-                .fragment("access=" + tokens.access()) // 쿼리로 보낼 경우 .queryParam("access", tokens.access())
-                .build(true).toUri();
+        // state 정규화 + 절대/상대 판단 + 화이트리스트
+        String s = (state == null) ? "/" : state.trim();
+        s = URLDecoder.decode(s, StandardCharsets.UTF_8);
+        if (s.contains("\r") || s.contains("\n")) s = "/"; // CRLF 방어
+
+        // "https:/" → "https://", "http:/" → "http://"
+        s = s.replaceFirst("(?i)^https:/(?!/)", "https://");
+        s = s.replaceFirst("(?i)^http:/(?!/)",  "http://");
+        // 스킴 없는 절대 URL("//host/path") 보정
+        if (s.startsWith("//")) s = "https:" + s;
+
+        URI target;
+        try {
+            URI u = URI.create(s);
+            if (u.isAbsolute()) {
+                String host = u.getHost();
+                boolean allowed = host != null && (
+                        host.equals("likelionhsu.co.kr") ||
+                                host.endsWith(".likelionhsu.co.kr") ||
+                                host.equals("localhost") // dev 필요 없으면 제거
+                );
+                if (allowed) {
+                    target = UriComponentsBuilder.fromUri(u)
+                            .fragment("access=" + tokens.access())
+                            .build(true).toUri();
+                } else {
+                    target = UriComponentsBuilder.fromUriString(frontendBase)
+                            .fragment("access=" + tokens.access())
+                            .build(true).toUri();
+                }
+            } else {
+                target = UriComponentsBuilder.fromUriString(frontendBase)
+                        .path(s.startsWith("/") ? s : "/" + s)
+                        .fragment("access=" + tokens.access())
+                        .build(true).toUri();
+            }
+        } catch (IllegalArgumentException e) {
+            target = UriComponentsBuilder.fromUriString(frontendBase)
+                    .fragment("access=" + tokens.access())
+                    .build(true).toUri();
+        }
 
         return ResponseEntity.status(302).location(target).build();
     }
