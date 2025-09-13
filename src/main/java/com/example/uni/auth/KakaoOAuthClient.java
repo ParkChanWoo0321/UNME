@@ -65,11 +65,26 @@ public class KakaoOAuthClient {
         private KakaoAccount kakaoAccount;
         @Data
         public static class KakaoAccount {
+            @JsonProperty("has_email")
+            private Boolean hasEmail;
+            @JsonProperty("email_needs_agreement")
+            private Boolean emailNeedsAgreement;
+            private String email;
+
+            @JsonProperty("profile")
+            private Profile profile;
+
             @JsonProperty("has_gender")
             private Boolean hasGender;
             @JsonProperty("gender_needs_agreement")
             private Boolean genderNeedsAgreement;
             private String gender;
+
+            @Data
+            public static class Profile {
+                private String nickname;
+            }
         }
+
     }
 }

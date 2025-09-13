@@ -20,7 +20,9 @@ import java.util.UUID;
                 @UniqueConstraint(name = "uk_kakao_id", columnNames = "kakao_id")
         }
 )
-@NoArgsConstructor @AllArgsConstructor @Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User extends BaseTimeEntity {
 
     @Id @GeneratedValue @UuidGenerator
@@ -28,6 +30,12 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "kakao_id", nullable = false)
     private String kakaoId;
+
+    @Column(name = "email", nullable = false, unique = true)
+    private String email;
+
+    @Column(name = "nickname", length = 20, nullable = false)
+    private String nickname;
 
     @Enumerated(EnumType.STRING)
     private Gender gender;

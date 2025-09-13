@@ -34,7 +34,8 @@ public class OAuthService {
                 })
                 .orElseGet(() -> User.builder()
                         .kakaoId(kakaoId)
-                        .gender(resolvedGender)
+                        .email(me.getKakaoAccount().getEmail())
+                        .nickname(me.getKakaoAccount().getProfile().getNickname())
                         .profileComplete(false)
                         .matchCredits(0)
                         .build());
