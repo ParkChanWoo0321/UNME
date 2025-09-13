@@ -74,10 +74,13 @@ public class OAuthService {
         return null;
     }
 
-    // 🔹 회원탈퇴
-    public void unlinkUser(UUID userId, String kakaoAccessToken) {
-        kakao.unlink(kakaoAccessToken);
-        userRepository.deleteById(userId); // 완전 삭제 (soft delete 필요 시 수정)
+    // 🔹 회원탈퇴 (JWT userId → kakaoId 찾아서 unlink)
+    public void unlinkUser(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException("User not found"));
+
+        kakao.unlinkWithAdminKey(user.getKakaoId());
+        userRepository.deleteById(userId);
     }
 
     public record Tokens(String access, String refresh) {}

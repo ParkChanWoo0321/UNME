@@ -9,6 +9,8 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.Map;
+
 @Component
 public class KakaoOAuthClient {
 
@@ -21,6 +23,9 @@ public class KakaoOAuthClient {
     private String clientId;
     @Value("${kakao.client-secret:}")
     private String clientSecret;
+
+    @Value("${kakao.admin-key}")
+    private String adminKey; // 🔹 unlink에 사용
 
     private WebClient webClient(String base) {
         return WebClient.builder().baseUrl(base).build();
@@ -52,11 +57,12 @@ public class KakaoOAuthClient {
                 .block();
     }
 
-    // 🔹 회원탈퇴 (연결 끊기)
-    public void unlink(String accessToken) {
+    // 🔹 Admin Key 기반 회원탈퇴 (서비스 JWT만으로 처리 가능)
+    public void unlinkWithAdminKey(String kakaoId) {
         WebClient wc = webClient(apiBase);
         wc.post().uri("/v1/user/unlink")
-                .headers(h -> h.setBearerAuth(accessToken))
+                .header("Authorization", "KakaoAK " + adminKey)
+                .bodyValue(Map.of("target_id_type", "user_id", "target_id", kakaoId))
                 .retrieve()
                 .bodyToMono(Void.class)
                 .block();

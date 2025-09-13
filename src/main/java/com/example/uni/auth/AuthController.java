@@ -144,18 +144,10 @@ public class AuthController {
         }
     }
 
-    // 🔹 회원탈퇴 (카카오 연결 끊기 + DB 삭제)
     @DeleteMapping("/kakao/unlink")
     public ResponseEntity<Void> unlink(@AuthenticationPrincipal String userId,
-                                       @RequestHeader("Authorization") String authorization,
                                        HttpServletResponse response) {
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            return ResponseEntity.status(401).build();
-        }
-        String kakaoAccessToken = authorization.substring(7);
-
-        oAuthService.unlinkUser(UUID.fromString(userId), kakaoAccessToken);
-
+        oAuthService.unlinkUser(UUID.fromString(userId));
         cookieUtil.clearRefreshCookie(response);
         return ResponseEntity.noContent().build();
     }
