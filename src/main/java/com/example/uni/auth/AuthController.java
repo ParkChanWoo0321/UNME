@@ -28,7 +28,7 @@ public class AuthController {
     private final CookieUtil cookieUtil;
     private final ObjectProvider<FirebaseTokenService> firebaseTokenService;
 
-    @Value("${kakao.client-id}")   private String kakaoClientId;
+    @Value("${kakao.client-id}")    private String kakaoClientId;
     @Value("${kakao.redirect-uri}") private String redirectUri;
     @Value("${frontend.redirect-base}") private String frontendBase;
 
@@ -49,11 +49,18 @@ public class AuthController {
     public ResponseEntity<Void> callback(@RequestParam("code") String code,
                                          @RequestParam(value = "state", required = false, defaultValue = "/") String state,
                                          HttpServletResponse response) {
-        String refresh = oAuthService.loginWithAuthorizationCode(code);
-        cookieUtil.setRefreshCookie(response, refresh);
+        // access + refresh 동시 발급
+        OAuthService.Tokens tokens = oAuthService.loginWithAuthorizationCode(code);
+
+        // refresh -> 쿠키 저장
+        cookieUtil.setRefreshCookie(response, tokens.refresh());
+
+        // 프론트로 302 리다이렉트 (URL fragment에 access 포함)
         URI target = UriComponentsBuilder.fromUriString(frontendBase)
                 .path(state.startsWith("/") ? state : "/" + state)
+                .fragment("access=" + tokens.access()) // 쿼리로 보낼 경우 .queryParam("access", tokens.access())
                 .build(true).toUri();
+
         return ResponseEntity.status(302).location(target).build();
     }
 

@@ -20,7 +20,8 @@ public class OAuthService {
     @Value("${kakao.redirect-uri}")
     private String redirectUri;
 
-    public String loginWithAuthorizationCode(String code) {
+    // 변경: access와 refresh를 함께 반환
+    public Tokens loginWithAuthorizationCode(String code) {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
         final String kakaoId = String.valueOf(me.getId());
@@ -40,7 +41,9 @@ public class OAuthService {
         user = userRepository.save(user);
         UUID uid = user.getId();
 
-        return jwtProvider.generateRefresh(uid.toString());
+        String access = jwtProvider.generateAccess(uid.toString());
+        String refresh = jwtProvider.generateRefresh(uid.toString());
+        return new Tokens(access, refresh);
     }
 
     public String issueAccessToken(String userId) {
@@ -68,4 +71,7 @@ public class OAuthService {
         }
         return null;
     }
+
+    // access + refresh DTO (새 파일 불필요: 내부 record로 정의)
+    public record Tokens(String access, String refresh) {}
 }
