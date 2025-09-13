@@ -31,7 +31,7 @@ public class KakaoOAuthClient {
         form.add("code", code);
         if (!clientSecret.isBlank()) form.add("client_secret", clientSecret);
 
-        return wc.post().uri("/api/oauth/token")
+        return wc.post().uri("/oauth/token")
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .bodyValue(form)
                 .retrieve()
@@ -41,7 +41,7 @@ public class KakaoOAuthClient {
 
     public KakaoUser me(String accessToken) {
         WebClient wc = WebClient.builder().baseUrl(apiBase).build();
-        return wc.get().uri("/api/v2/user/me")
+        return wc.get().uri("/v2/user/me")
                 .headers(h -> h.setBearerAuth(accessToken))
                 .retrieve()
                 .bodyToMono(KakaoUser.class)
