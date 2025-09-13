@@ -13,8 +13,7 @@ public class PeerDetailResponse {
     private String name;
     private String department;
     private String studentNo;
-    private Integer birthYear;
-    private Integer age;
+    private String birthYear;
     private Gender gender;
     private Integer typeId;
     private String introduce;

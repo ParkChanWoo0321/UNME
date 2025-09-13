@@ -1,5 +1,8 @@
+// src/main/java/com/example/uni/auth/AuthController.java
 package com.example.uni.auth;
 
+import com.example.uni.common.exception.ApiException;
+import com.example.uni.common.exception.ErrorCode;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +29,7 @@ public class AuthController {
     private final CookieUtil cookieUtil;
     private final ObjectProvider<FirebaseTokenService> firebaseTokenService;
 
-    @Value("${kakao.client-id}")   private String kakaoClientId;
+    @Value("${kakao.client-id}")    private String kakaoClientId;
     @Value("${kakao.redirect-uri}") private String redirectUri;
     @Value("${frontend.redirect-base}") private String frontendBase;
 
@@ -46,9 +49,10 @@ public class AuthController {
     @GetMapping("/kakao/callback")
     public ResponseEntity<Void> callback(@RequestParam("code") String code,
                                          @RequestParam(value = "state", required = false, defaultValue = "/") String state,
+                                         @RequestHeader(value = "X-Device-Id", required = false) String deviceId, // ★ 추가
                                          HttpServletResponse response) {
-        String refresh = oAuthService.loginWithAuthorizationCode(code); // refresh 발급
-        cookieUtil.setRefreshCookie(response, refresh);                  // ★ HttpOnly 쿠키
+        String refresh = oAuthService.loginWithAuthorizationCode(code, deviceId == null ? "web" : deviceId); // ★ 변경
+        cookieUtil.setRefreshCookie(response, refresh);
         URI target = UriComponentsBuilder.fromUriString(frontendBase)
                 .path(state.startsWith("/") ? state : "/" + state)
                 .build(true).toUri();
@@ -56,12 +60,18 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> reissueAccess(HttpServletRequest request, HttpServletResponse response) {
+    public ResponseEntity<?> reissueAccess(HttpServletRequest request,
+                                           HttpServletResponse response,
+                                           @RequestHeader(value = "X-Device-Id", required = false) String deviceId // ★ 추가
+    ) {
         String refresh = cookieUtil.resolveRefreshFromRequest(request);
         if (refresh == null) return ResponseEntity.status(401).body(Map.of("error","NO_REFRESH"));
-        String userId = oAuthService.validateRefreshAndGetUserId(refresh);
 
-        String rotated = oAuthService.rotateRefresh(refresh);
+        // ★ 디바이스 단위 검증
+        String userId = oAuthService.validateRefreshAndGetUserId(refresh, deviceId == null ? "unknown" : deviceId);
+
+        // ★ 해당 디바이스 세션만 회전
+        String rotated = oAuthService.rotateRefresh(refresh, deviceId == null ? "unknown" : deviceId);
         if (rotated != null) cookieUtil.setRefreshCookie(response, rotated);
 
         String access = oAuthService.issueAccessToken(userId);
@@ -77,7 +87,8 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<?> me(@AuthenticationPrincipal String userId) {
-        User u = userRepository.findById(UUID.fromString(userId)).orElseThrow();
+        User u = userRepository.findById(UUID.fromString(userId))
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         return ResponseEntity.ok(Map.of(
                 "userId", u.getId(),
                 "profileComplete", u.isProfileComplete(),

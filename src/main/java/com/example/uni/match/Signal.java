@@ -1,3 +1,4 @@
+// src/main/java/com/example/uni/match/Signal.java
 package com.example.uni.match;
 
 import com.example.uni.common.domain.BaseTimeEntity;
@@ -34,4 +35,7 @@ public class Signal extends BaseTimeEntity {
     private Status status;
 
     public enum Status { SENT, MUTUAL, CANCELED, DECLINED }
+
+    @Version
+    private Long version;
 }

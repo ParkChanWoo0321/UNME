@@ -20,9 +20,10 @@ public class UserOnboardingRequest {
     @NotBlank(message = "학번을 확인해주세요.")
     private String studentNo;
 
-    @NotNull(message = "나이를 확인해주세요.")
-    @Min(value = 1990) @Max(value = 2006)
-    private Integer birthYear;
+    // 두 자리: 90~99, 00~06
+    @NotBlank(message = "년생을 입력하세요.")
+    @Pattern(regexp = "^(9\\d|0[0-6])$", message = "나이를 확인해주세요.")
+    private String birthYear;
 
     @NotNull(message = "성별은 필수입니다")
     private Gender gender;

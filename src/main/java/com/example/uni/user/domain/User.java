@@ -40,8 +40,8 @@ public class User extends BaseTimeEntity {
     @Column(name = "student_no")
     private String studentNo;
 
-    @Column(name = "birth_year")
-    private Integer birthYear;
+    @Column(name = "birth_year", length = 2)
+    private String birthYear;
 
     @Column(name = "profile_complete", nullable = false)
     private boolean profileComplete;
@@ -54,9 +54,6 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "dating_style_answers_json", columnDefinition = "TEXT")
     private String datingStyleAnswersJson;
-
-    @Column(name = "dating_style_completed", nullable = false, columnDefinition = "boolean default false")
-    private boolean datingStyleCompleted;
 
     @Column(name = "dating_style_summary", columnDefinition = "TEXT")
     private String styleSummary;

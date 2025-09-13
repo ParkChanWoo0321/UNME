@@ -35,12 +35,14 @@ public class ChatService {
         if (found.isPresent()) return found.get();
 
         try {
-            return roomRepo.save(ChatRoom.builder()
-                    .userA(a).userB(b)
-                    .anonymousNameA("별" + a.getId().toString().substring(0,4))
-                    .anonymousNameB("별" + b.getId().toString().substring(0,4))
-                    .accepted(true)
-                    .build());
+            return roomRepo.saveAndFlush(
+                    ChatRoom.builder()
+                            .userA(a).userB(b)
+                            .anonymousNameA("별" + a.getId().toString().substring(0,4))
+                            .anonymousNameB("별" + b.getId().toString().substring(0,4))
+                            .accepted(true)
+                            .build()
+            );
         } catch (DataIntegrityViolationException e) {
             return roomRepo.findByUserAAndUserB(a, b).orElseThrow(() -> e);
         }

@@ -1,6 +1,8 @@
 package com.example.uni.common.exception;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import jakarta.persistence.OptimisticLockException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,7 +19,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(e.getCode().status)
                 .body(Map.of(
                         "error", e.getCode().name(),
-                        "message", e.getMessage()
+                        "message", e.getCode().message
                 ));
     }
 
@@ -31,5 +33,14 @@ public class GlobalExceptionHandler {
                 ));
         return ResponseEntity.badRequest()
                 .body(Map.of("error", "VALIDATION_ERROR", "details", details));
+    }
+
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<?> handleOptimistic(Exception ex){
+        return ResponseEntity.status(ErrorCode.CONFLICT.status)
+                .body(Map.of(
+                        "error", "CONFLICT",
+                        "message", "다시 시도해 주세요."
+                ));
     }
 }

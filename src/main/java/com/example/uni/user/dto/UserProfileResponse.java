@@ -13,8 +13,7 @@ public class UserProfileResponse {
     private String name;
     private String department;
     private String studentNo;
-    private Integer birthYear;
-    private Integer age;
+    private String birthYear;
     private Gender gender;
     private boolean profileComplete;
     private int matchCredits;
