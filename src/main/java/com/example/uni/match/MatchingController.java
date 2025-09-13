@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping
+@RequestMapping("/api")
 @RequiredArgsConstructor
 public class MatchingController {
 
