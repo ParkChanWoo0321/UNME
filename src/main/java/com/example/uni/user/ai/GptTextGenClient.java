@@ -13,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import jakarta.annotation.PostConstruct;
 import java.util.*;
 
 @Component
@@ -31,6 +32,20 @@ public class GptTextGenClient implements TextGenClient {
 
     @Value("${openai.model:gpt-4o-mini}")
     private String model;
+
+    /** ✅ 서버 시작 시 API 키 확인 */
+    @PostConstruct
+    public void checkKey() {
+        if (apiKey == null || apiKey.isBlank()) {
+            log.error("[GPT] API Key 로드 실패 (null/blank)");
+        } else {
+            // 앞 10자리만 찍고 나머지는 마스킹
+            String masked = apiKey.length() > 13
+                    ? apiKey.substring(0, 10) + "..." + apiKey.substring(apiKey.length() - 3)
+                    : apiKey;
+            log.info("[GPT] Loaded API Key = {}", masked);
+        }
+    }
 
     private WebClient client(){
         return WebClient.builder()
