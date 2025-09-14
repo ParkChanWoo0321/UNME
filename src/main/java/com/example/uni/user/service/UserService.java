@@ -146,15 +146,16 @@ public class UserService {
     }
 
     /** 내 프로필 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
-    public UserProfileResponse toResponse(User u){
+    public UserProfileResponse toResponse(User u) {
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
-
-        // 조회 시에는 DB 저장값 사용 (GPT 재호출 안 함)
         List<String> tags = parseTags(u.getStyleTagsJson());
 
         return UserProfileResponse.builder()
                 .userId(u.getId())
+                .kakaoId(u.getKakaoId())
+                .email(u.getEmail())
+                .nickname(u.getNickname())
                 .name(u.getName())
                 .department(u.getDepartment())
                 .studentNo(u.getStudentNo())
@@ -162,6 +163,7 @@ public class UserService {
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
+                .version(u.getVersion())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
                 .typeImageUrl(imageUrlByType(typeId))
@@ -169,8 +171,11 @@ public class UserService {
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
                 .introduce(u.getIntroduce())
+                .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
+                .updatedAt(u.getUpdatedAt() != null ? u.getUpdatedAt().toString() : null)
                 .build();
     }
+
 
     /** 상대 상세 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public PeerDetailResponse toPeerResponse(User u){

@@ -3,7 +3,9 @@ package com.example.uni.auth;
 import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
 import com.example.uni.user.domain.User;
+import com.example.uni.user.dto.UserProfileResponse;
 import com.example.uni.user.repo.UserRepository;
+import com.example.uni.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,7 @@ public class AuthController {
     private final OAuthService oAuthService;
     private final CookieUtil cookieUtil;
     private final ObjectProvider<FirebaseTokenService> firebaseTokenService;
+    private final UserService userService;
 
     @Value("${kakao.client-id}")    private String kakaoClientId;
     @Value("${kakao.redirect-uri}") private String redirectUri;
@@ -117,14 +120,10 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(@AuthenticationPrincipal String userId) {
+    public ResponseEntity<UserProfileResponse> me(@AuthenticationPrincipal String userId) {
         User u = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
-        return ResponseEntity.ok(Map.of(
-                "userId", u.getId(),
-                "profileComplete", u.isProfileComplete(),
-                "credits", u.getMatchCredits()
-        ));
+        return ResponseEntity.ok(userService.toResponse(u));
     }
 
     @GetMapping("/firebase/token")

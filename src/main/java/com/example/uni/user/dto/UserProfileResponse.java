@@ -11,6 +11,9 @@ import java.util.UUID;
 @Builder
 public class UserProfileResponse {
     private UUID userId;
+    private String kakaoId;
+    private String email;
+    private String nickname;
     private String name;
     private String department;
     private String studentNo;
@@ -18,6 +21,7 @@ public class UserProfileResponse {
     private Gender gender;
     private boolean profileComplete;
     private int matchCredits;
+    private Long version;
     private String typeTitle;
     private String typeContent;
     private String typeImageUrl;
@@ -25,4 +29,6 @@ public class UserProfileResponse {
     private String recommendedPartner;
     private List<String> tags;
     private String introduce;
+    private String createdAt;
+    private String updatedAt;
 }
