@@ -26,14 +26,14 @@ public class UserService {
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
 
-    // 타입별 프로필 이미지 URL (properties에서 주입)
-    @Value("${app.type-image.1}")
+    // 타입별 프로필 이미지 URL (properties에서 주입) — 기본값을 비워서 부팅 실패 방지
+    @Value("${app.type-image.1:}")
     private String typeImage1;
-    @Value("${app.type-image.2}")
+    @Value("${app.type-image.2:}")
     private String typeImage2;
-    @Value("${app.type-image.3}")
+    @Value("${app.type-image.3:}")
     private String typeImage3;
-    @Value("${app.type-image.4}")
+    @Value("${app.type-image.4:}")
     private String typeImage4;
 
     private String imageUrlByType(int typeId){
@@ -142,8 +142,7 @@ public class UserService {
     private Map<String,String> parseAnswers(String json){
         try {
             if (json == null || json.isBlank()) return Collections.emptyMap();
-            return om.readValue(json, new TypeReference<>() {
-            });
+            return om.readValue(json, new TypeReference<Map<String,String>>(){});
         } catch (Exception e) {
             return Collections.emptyMap();
         }
@@ -168,7 +167,7 @@ public class UserService {
                 .matchCredits(u.getMatchCredits())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(imageUrlByType(typeId))
+                .typeImageUrl(imageUrlByType(typeId)) // 프로퍼티 미설정 시 빈 문자열
                 .styleSummary(u.getStyleSummary())
                 .recommendedPartner(ds != null ? ds.getRecommendedPartner() : null)
                 .tags(ds != null ? ds.getTags() : List.of())
