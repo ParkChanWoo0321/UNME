@@ -1,4 +1,4 @@
-package com.example.uni.sajin;
+package com.example.uni.picture;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

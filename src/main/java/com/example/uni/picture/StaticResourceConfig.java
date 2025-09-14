@@ -1,4 +1,4 @@
-package com.example.uni.sajin;
+package com.example.uni.picture;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;

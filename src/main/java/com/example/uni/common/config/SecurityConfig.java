@@ -46,6 +46,7 @@ public class SecurityConfig {
                                 "/auth/refresh",
                                 "/auth/logout",
                                 "/ws/**",
+                                "/files/**",
                                 "/error",
                                 "/favicon.ico",
                                 "/actuator/**",
