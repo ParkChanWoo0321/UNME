@@ -22,8 +22,6 @@ public class TypeImageUploadController {
 
     @Value("${app.upload.dir:./uploads}")
     private String uploadRoot;
-
-    @Value("${server.servlet.context-path:}")
     private String contextPath; // 예: "/api" 또는 ""
 
     @PostMapping(value = "/{type}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
