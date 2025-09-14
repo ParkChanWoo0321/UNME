@@ -171,6 +171,7 @@ public class UserService {
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
                 .introduce(u.getIntroduce())
+                .instagramId(u.getInstagramId())
                 .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
                 .updatedAt(u.getUpdatedAt() != null ? u.getUpdatedAt().toString() : null)
                 .build();
@@ -198,6 +199,17 @@ public class UserService {
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
                 .introduce(u.getIntroduce())
+                .instagramId(u.getInstagramId())
                 .build();
+    }
+
+    @Transactional
+    public User updateInstagram(UUID userId, String instagramIdRaw) {
+        User u = get(userId);
+        String v = (instagramIdRaw == null) ? null : instagramIdRaw.trim();
+        if (v != null && !v.isEmpty() && v.charAt(0) == '@') v = v.substring(1);
+        if (v != null && v.isBlank()) v = null;
+        u.setInstagramId(v);
+        return userRepository.save(u);
     }
 }

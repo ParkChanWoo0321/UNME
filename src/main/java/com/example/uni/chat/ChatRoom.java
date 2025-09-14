@@ -16,15 +16,11 @@ import java.util.UUID;
 public class ChatRoom extends BaseTimeEntity {
     @Id @GeneratedValue @UuidGenerator
     private UUID id;
-
     @ManyToOne(optional=false) @JoinColumn(name="user_a_id", nullable=false)
     private User userA;
-
     @ManyToOne(optional=false) @JoinColumn(name="user_b_id", nullable=false)
     private User userB;
-
     private String anonymousNameA;
     private String anonymousNameB;
-
     private boolean accepted;
 }

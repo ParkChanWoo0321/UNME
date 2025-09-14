@@ -60,4 +60,15 @@ public class UserController {
         User u = userService.updateIntroduce(uid(principal), introduce);
         return ResponseEntity.ok(userService.toResponse(u));
     }
+
+    /** 인스타 아이디 작성/수정 (한줄소개 API와 동일한 패턴) */
+    @PutMapping("/instagram")
+    public ResponseEntity<UserProfileResponse> updateInstagram(
+            @AuthenticationPrincipal String principal,
+            @RequestBody Map<String,String> body
+    ){
+        String instagramId = body.get("instagramId");
+        User u = userService.updateInstagram(uid(principal), instagramId);
+        return ResponseEntity.ok(userService.toResponse(u));
+    }
 }
