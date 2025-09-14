@@ -68,10 +68,10 @@ public class UserService {
     /** typeId → 제목/내용 텍스트 매핑 (응답에만 사용) */
     private static TypeText toTypeText(int typeId){
         return switch (typeId) {
-            case 1 -> new TypeText("활발한 에너지형 입니다.", "관계의 즐거움과 생기를 붙여넣는 매력의 소유자!");
-            case 2 -> new TypeText("따뜻한 통찰력형 입니다.", "깊은 교감의 매력 소유자!");
-            case 3 -> new TypeText("든든한 신뢰형 입니다.", "관계의 일정을 주는 든든한 매력의 소유자!");
-            default -> new TypeText("세련된 감각형 입니다.", "만남을 빛내는 개성 넘치는 매력의 소유자!");
+            case 1 -> new TypeText("활발한 에너지형", "관계의 즐거움과 생기를 붙여넣는 매력의 소유자!");
+            case 2 -> new TypeText("따뜻한 통찰력형", "깊은 교감의 매력 소유자!");
+            case 3 -> new TypeText("든든한 신뢰형", "관계의 일정을 주는 든든한 매력의 소유자!");
+            default -> new TypeText("세련된 감각형", "만남을 빛내는 개성 넘치는 매력의 소유자!");
         };
     }
     private record TypeText(String title, String content) {}
@@ -136,14 +136,6 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    private Map<String,String> parseAnswers(String json){
-        try {
-            if (json == null || json.isBlank()) return Collections.emptyMap();
-            return om.readValue(json, new TypeReference<Map<String,String>>(){});
-        } catch (Exception e) {
-            return Collections.emptyMap();
-        }
-    }
     private List<String> parseTags(String json){
         try {
             if (json == null || json.isBlank()) return List.of();
