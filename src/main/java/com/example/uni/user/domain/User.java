@@ -71,4 +71,10 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "introduce", length = 100)
     private String introduce;
+
+    @Column(name = "style_recommended_partner", length = 600)
+    private String styleRecommendedPartner;
+
+    @Column(name = "style_tags_json", length = 255)
+    private String styleTagsJson;
 }

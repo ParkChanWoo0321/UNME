@@ -25,10 +25,9 @@ public class UserService {
     private final UserRepository userRepository;
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
-    private final Environment env; // ★ 프로퍼티는 런타임 조회
+    private final Environment env; // 프로퍼티는 런타임 조회
 
     private String imageUrlByType(int typeId){
-        // 프로퍼티 없으면 "" 반환 → 절대 부팅 실패 없음
         String u1 = env.getProperty("app.type-image.1", "");
         String u2 = env.getProperty("app.type-image.2", "");
         String u3 = env.getProperty("app.type-image.3", "");
@@ -109,13 +108,15 @@ public class UserService {
         // 내부 저장용 typeId 산출(응답에는 노출 안 함)
         u.setTypeId(determineTypeId(answers));
 
-        // 답변 변경 시 특징 요약 재생성(특징만 DB에 저장 유지)
+        // 답변 변경 시 GPT 재생성 → DB에 3종 저장
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
             if (!newJson.equals(oldJson)) {
                 DatingStyleSummary ds = textGenClient.summarizeDatingStyle(answers);
                 u.setStyleSummary(ds.getFeature());
+                u.setStyleRecommendedPartner(ds.getRecommendedPartner());
+                u.setStyleTagsJson(om.writeValueAsString(ds.getTags()));
             }
             u.setDatingStyleAnswersJson(newJson);
         } catch (Exception e) {
@@ -143,14 +144,22 @@ public class UserService {
             return Collections.emptyMap();
         }
     }
+    private List<String> parseTags(String json){
+        try {
+            if (json == null || json.isBlank()) return List.of();
+            return om.readValue(json, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
 
     /** 내 프로필 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public UserProfileResponse toResponse(User u){
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
 
-        Map<String,String> answers = parseAnswers(u.getDatingStyleAnswersJson());
-        DatingStyleSummary ds = answers.isEmpty() ? null : textGenClient.summarizeDatingStyle(answers);
+        // 조회 시에는 DB 저장값 사용 (GPT 재호출 안 함)
+        List<String> tags = parseTags(u.getStyleTagsJson());
 
         return UserProfileResponse.builder()
                 .userId(u.getId())
@@ -163,10 +172,10 @@ public class UserService {
                 .matchCredits(u.getMatchCredits())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(imageUrlByType(typeId)) // 프로퍼티 없으면 ""
+                .typeImageUrl(imageUrlByType(typeId))
                 .styleSummary(u.getStyleSummary())
-                .recommendedPartner(ds != null ? ds.getRecommendedPartner() : null)
-                .tags(ds != null ? ds.getTags() : List.of())
+                .recommendedPartner(u.getStyleRecommendedPartner())
+                .tags(tags)
                 .introduce(u.getIntroduce())
                 .build();
     }
@@ -176,8 +185,7 @@ public class UserService {
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
 
-        Map<String,String> answers = parseAnswers(u.getDatingStyleAnswersJson());
-        DatingStyleSummary ds = answers.isEmpty() ? null : textGenClient.summarizeDatingStyle(answers);
+        List<String> tags = parseTags(u.getStyleTagsJson());
 
         return PeerDetailResponse.builder()
                 .userId(u.getId())
@@ -190,8 +198,8 @@ public class UserService {
                 .typeContent(tt.content())
                 .typeImageUrl(imageUrlByType(typeId))
                 .styleSummary(u.getStyleSummary())
-                .recommendedPartner(ds != null ? ds.getRecommendedPartner() : null)
-                .tags(ds != null ? ds.getTags() : List.of())
+                .recommendedPartner(u.getStyleRecommendedPartner())
+                .tags(tags)
                 .introduce(u.getIntroduce())
                 .build();
     }

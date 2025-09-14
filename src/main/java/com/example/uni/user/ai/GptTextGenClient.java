@@ -4,10 +4,14 @@ import com.example.uni.user.dto.DatingStyleSummary;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 import java.util.*;
 
@@ -16,7 +20,10 @@ import java.util.*;
 @org.springframework.context.annotation.Primary
 public class GptTextGenClient implements TextGenClient {
 
-    @Value("${openai.api-key}")
+    private static final Logger log = LoggerFactory.getLogger(GptTextGenClient.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Value("${openai.api-key:}")
     private String apiKey;
 
     @Value("${openai.base-url:https://api.openai.com}")
@@ -24,8 +31,6 @@ public class GptTextGenClient implements TextGenClient {
 
     @Value("${openai.model:gpt-4o-mini}")
     private String model;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private WebClient client(){
         return WebClient.builder()
@@ -50,16 +55,27 @@ public class GptTextGenClient implements TextGenClient {
                                         "tags는 해시 없이 3개의 핵심 단어, 중복 금지."),
                         Map.of("role","user","content", prompt)
                 },
-                "temperature", 0.5,
+                "temperature", 0.4,
                 "max_tokens", 380
         );
 
         try {
+            if (apiKey == null || apiKey.isBlank()) {
+                log.error("[GPT] openai.api-key 비어있음 → fallback 반환");
+                return fallback();
+            }
+
             ChatCompletionResponse resp = client().post()
                     .uri("/v1/chat/completions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(body)
                     .retrieve()
+                    .onStatus(s -> !s.is2xxSuccessful(), r ->
+                            r.bodyToMono(String.class).flatMap(b -> {
+                                log.error("[GPT] HTTP {} 에러 바디: {}", r.statusCode(), b);
+                                return Mono.error(new RuntimeException("OpenAI error: " + r.statusCode()));
+                            })
+                    )
                     .bodyToMono(ChatCompletionResponse.class)
                     .block();
 
@@ -71,15 +87,23 @@ public class GptTextGenClient implements TextGenClient {
                     .map(Message::content)
                     .orElse(null);
 
-            Map<String, Object> json = parseJson(content);
-            String feature = clean((String) json.getOrDefault("feature", defaultFeature()));
-            String partner = clean((String) json.getOrDefault("recommendedPartner", defaultPartner()));
+            if (content == null || content.isBlank()) {
+                log.error("[GPT] 빈 content 수신 → fallback. prompt={}", abbreviate(prompt));
+                return fallback();
+            }
 
-            // 안전 변환으로 형변환 경고/예외 방지
+            Map<String, Object> json = parseJson(content);
+            String feature = clean((String) json.getOrDefault("feature", ""));
+            String partner = clean((String) json.getOrDefault("recommendedPartner", ""));
             List<String> raw = toStringList(json.get("tags"));
             if (raw.isEmpty()) raw = List.of("안정감","소통","배려");
-
             List<String> tags = normalizeTags(raw);
+
+            if (feature.isBlank() || partner.isBlank()) {
+                log.warn("[GPT] JSON 필드 누락/비어있음 → 기본값 보강. content={}", abbreviate(content));
+                if (feature.isBlank()) feature = defaultFeature();
+                if (partner.isBlank()) partner = defaultPartner();
+            }
 
             return DatingStyleSummary.builder()
                     .feature(feature)
@@ -87,13 +111,21 @@ public class GptTextGenClient implements TextGenClient {
                     .tags(tags)
                     .build();
 
+        } catch (WebClientResponseException e) {
+            log.error("[GPT] HTTP 예외 status={} body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            return fallback();
         } catch (Exception e) {
-            return DatingStyleSummary.builder()
-                    .feature(defaultFeature())
-                    .recommendedPartner(defaultPartner())
-                    .tags(List.of("안정감","소통","배려"))
-                    .build();
+            log.error("[GPT] 호출/파싱 실패: {} - {}", e.getClass().getSimpleName(), e.getMessage(), e);
+            return fallback();
         }
+    }
+
+    private DatingStyleSummary fallback() {
+        return DatingStyleSummary.builder()
+                .feature(defaultFeature())
+                .recommendedPartner(defaultPartner())
+                .tags(List.of("안정감","소통","배려"))
+                .build();
     }
 
     /** Object → List<String> 안전 변환 */
@@ -104,7 +136,6 @@ public class GptTextGenClient implements TextGenClient {
             for (Object o : list) if (o != null) out.add(String.valueOf(o));
             return out;
         }
-        // 모델이 문자열로 반환한 경우까지 방어
         String s = String.valueOf(v).trim();
         if (s.isEmpty()) return List.of();
         try {
@@ -176,7 +207,7 @@ public class GptTextGenClient implements TextGenClient {
         };
         StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 근거로 결과를 만들어라.\n\n");
         for (int i = 0; i < 10; i++) {
-            String sel = a.get("q" + (i + 1));
+            String sel = a.getOrDefault("q" + (i + 1), "");
             sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
                     .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
@@ -184,6 +215,12 @@ public class GptTextGenClient implements TextGenClient {
         return sb.toString();
     }
 
+    private static String abbreviate(String s) {
+        if (s == null) return "";
+        return s.length() > 300 ? s.substring(0, 300) + "..." : s;
+    }
+
+    /** ---- 최소 DTO (응답에서 쓰는 부분만) ---- */
     private record ChatCompletionResponse(List<Choice> choices) {}
     private record Choice(Message message) {}
     private record Message(String role, String content) {}
