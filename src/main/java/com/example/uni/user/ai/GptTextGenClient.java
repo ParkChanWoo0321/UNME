@@ -1,13 +1,15 @@
 package com.example.uni.user.ai;
 
+import com.example.uni.user.dto.DatingStyleSummary;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -23,6 +25,8 @@ public class GptTextGenClient implements TextGenClient {
     @Value("${openai.model:gpt-4o-mini}")
     private String model;
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private WebClient client(){
         return WebClient.builder()
                 .baseUrl(baseUrl)
@@ -31,21 +35,23 @@ public class GptTextGenClient implements TextGenClient {
     }
 
     @Override
-    public String summarizeDatingStyle(Map<String, String> answers) {
+    public DatingStyleSummary summarizeDatingStyle(Map<String, String> answers) {
         String prompt = buildPrompt(answers);
 
         var body = Map.of(
                 "model", model,
                 "messages", new Object[]{
                         Map.of("role","system","content",
-                                "너는 데이팅 성향의 '특징 단락'만 생성하는 한국어 어시스턴트다. " +
-                                        "사용자의 A/B 응답을 근거로 관계 맥락에서 드러나는 강점 2~3가지를 " +
-                                        "한 단락(문장 1~2개), 총 180~220자 내외로 작성해라. " +
-                                        "과장·진단·판단·조언·목차·헤더·이모지·줄바꿈 금지. 중립적이고 자연스러운 존댓말로."),
+                                "너는 데이팅 성향 결과를 한국어로 생성한다. " +
+                                        "반드시 JSON만 출력해. 코드블록/설명/개행/이모지 금지. " +
+                                        "JSON schema: {\"feature\":\"문장 1~2개, 180~220자\", " +
+                                        "\"recommendedPartner\":\"문장 1개, 110~150자\", " +
+                                        "\"tags\":[\"단어\",\"단어\",\"단어\"]} " +
+                                        "tags는 해시 없이 3개의 핵심 단어, 중복 금지."),
                         Map.of("role","user","content", prompt)
                 },
                 "temperature", 0.5,
-                "max_tokens", 220
+                "max_tokens", 380
         );
 
         try {
@@ -60,23 +66,99 @@ public class GptTextGenClient implements TextGenClient {
             String content = Optional.ofNullable(resp)
                     .map(ChatCompletionResponse::choices)
                     .filter(list -> !list.isEmpty())
-                    .map(java.util.List::getFirst)
+                    .map(List::getFirst)
                     .map(Choice::message)
                     .map(Message::content)
-                    .map(String::trim)
                     .orElse(null);
 
-            if (content != null && !content.isBlank()) {
-                // 줄바꿈/중복 공백 제거 후 즉시 반환
-                return content.replaceAll("[\\r\\n]+", " ")
-                        .replaceAll("\\s{2,}", " ")
-                        .trim();
-            }
-        } catch (Exception ignore) {
-        }
+            Map<String, Object> json = parseJson(content);
+            String feature = clean((String) json.getOrDefault("feature", defaultFeature()));
+            String partner = clean((String) json.getOrDefault("recommendedPartner", defaultPartner()));
 
-        // Fallback
+            // 안전 변환으로 형변환 경고/예외 방지
+            List<String> raw = toStringList(json.get("tags"));
+            if (raw.isEmpty()) raw = List.of("안정감","소통","배려");
+
+            List<String> tags = normalizeTags(raw);
+
+            return DatingStyleSummary.builder()
+                    .feature(feature)
+                    .recommendedPartner(partner)
+                    .tags(tags)
+                    .build();
+
+        } catch (Exception e) {
+            return DatingStyleSummary.builder()
+                    .feature(defaultFeature())
+                    .recommendedPartner(defaultPartner())
+                    .tags(List.of("안정감","소통","배려"))
+                    .build();
+        }
+    }
+
+    /** Object → List<String> 안전 변환 */
+    private static List<String> toStringList(Object v) {
+        if (v == null) return List.of();
+        if (v instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object o : list) if (o != null) out.add(String.valueOf(o));
+            return out;
+        }
+        // 모델이 문자열로 반환한 경우까지 방어
+        String s = String.valueOf(v).trim();
+        if (s.isEmpty()) return List.of();
+        try {
+            return MAPPER.readValue(s, new TypeReference<List<String>>() {});
+        } catch (Exception ignore) {
+            String[] parts = s.split("[,\\s]+");
+            List<String> out = new ArrayList<>();
+            for (String p : parts) if (!p.isBlank()) out.add(p);
+            return out;
+        }
+    }
+
+    private static List<String> normalizeTags(List<String> in){
+        if (in == null) return List.of("안정감","소통","배려");
+        List<String> out = new ArrayList<>();
+        for (Object o : in) {
+            if (o == null) continue;
+            String s = clean(String.valueOf(o)).replace("#","").trim();
+            if (s.isBlank()) continue;
+            if (!out.contains(s)) out.add(s);
+            if (out.size() == 3) break;
+        }
+        List<String> fill = List.of("안정감","소통","배려","재미","설렘","신뢰");
+        for (String f : fill) {
+            if (out.size() == 3) break;
+            if (!out.contains(f)) out.add(f);
+        }
+        return out.subList(0, 3);
+    }
+
+    private static String clean(String s){
+        if (s == null) return "";
+        return s.replaceAll("[\\r\\n]+", " ").replaceAll("\\s{2,}", " ").trim();
+    }
+
+    private static Map<String,Object> parseJson(String content){
+        if (content == null) return Map.of();
+        String c = content.trim();
+        int start = c.indexOf('{');
+        int end = c.lastIndexOf('}');
+        if (start >= 0 && end > start) c = c.substring(start, end + 1);
+        try {
+            return MAPPER.readValue(c, new TypeReference<Map<String,Object>>() {});
+        } catch (Exception ignore) {
+            return Map.of();
+        }
+    }
+
+    private String defaultFeature(){
         return "응답을 보면 편안한 소통과 상호 배려를 중시하며, 상황에 맞게 분위기를 살리고 상대의 감정을 세심하게 살피는 편입니다. 관계에서는 신뢰를 바탕으로 안정감을 주고, 상대가 편하게 표현할 수 있도록 배려하는 강점이 돋보입니다.";
+    }
+
+    private String defaultPartner(){
+        return "진솔한 대화를 통해 서로의 속도를 맞추고, 꾸준함과 신뢰를 소중히 여기는 분과 잘 어울립니다. 함께 안정적인 관계를 만들어가며 편안함을 나눌 수 있는 사람이 이상적입니다.";
     }
 
     private String buildPrompt(Map<String,String> a){
@@ -92,18 +174,17 @@ public class GptTextGenClient implements TextGenClient {
                 {"첫 대화","가볍고 친근한 질문(a)","가치관 등 깊은 질문(b)"},
                 {"상호작용","분위기 주도/리드(a)","경청/맞춤(b)"}
         };
-        StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 요약의 근거로 사용해.\n\n");
+        StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 근거로 결과를 만들어라.\n\n");
         for (int i = 0; i < 10; i++) {
             String sel = a.get("q" + (i + 1));
             sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
                     .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
-        sb.append("\n출력 형식: 한 단락(문장 1~2개), 180~220자. 강점 2~3개 중심. 조언/목차/헤더/이모지/줄바꿈 금지.");
+        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"]}");
         return sb.toString();
     }
 
-    /** ---- 최소 DTO (응답에서 쓰는 부분만) ---- */
-    private record ChatCompletionResponse(java.util.List<Choice> choices) {}
+    private record ChatCompletionResponse(List<Choice> choices) {}
     private record Choice(Message message) {}
     private record Message(String role, String content) {}
 }

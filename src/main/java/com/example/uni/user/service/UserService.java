@@ -2,14 +2,17 @@ package com.example.uni.user.service;
 
 import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
+import com.example.uni.user.ai.TextGenClient;
 import com.example.uni.user.domain.User;
+import com.example.uni.user.dto.DatingStyleSummary;
 import com.example.uni.user.dto.PeerDetailResponse;
 import com.example.uni.user.dto.UserOnboardingRequest;
 import com.example.uni.user.dto.UserProfileResponse;
 import com.example.uni.user.repo.UserRepository;
-import com.example.uni.user.ai.TextGenClient;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,25 @@ public class UserService {
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
 
+    // 타입별 프로필 이미지 URL (properties에서 주입)
+    @Value("${app.type-image.1}")
+    private String typeImage1;
+    @Value("${app.type-image.2}")
+    private String typeImage2;
+    @Value("${app.type-image.3}")
+    private String typeImage3;
+    @Value("${app.type-image.4}")
+    private String typeImage4;
+
+    private String imageUrlByType(int typeId){
+        return switch (typeId) {
+            case 1 -> typeImage1;
+            case 2 -> typeImage2;
+            case 3 -> typeImage3;
+            default -> typeImage4;
+        };
+    }
+
     public User get(UUID id){
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
@@ -32,7 +54,7 @@ public class UserService {
         return !userRepository.existsByNameIgnoreCase(name);
     }
 
-    /** A/B 개수로 최종 타입 산출 */
+    /** A/B 개수로 최종 타입 산출 (규칙 유지) */
     private static int determineTypeId(Map<String,String> answers) {
         int aCnt = 0;
         for (int i = 1; i <= 10; i++) {
@@ -47,6 +69,17 @@ public class UserService {
         if (aCnt <= 4) return 3;   // 든든한 신뢰
         return 4;                  // 세련된 감각
     }
+
+    /** typeId → 제목/내용 텍스트 매핑 (응답에만 사용) */
+    private static TypeText toTypeText(int typeId){
+        return switch (typeId) {
+            case 1 -> new TypeText("활발한 에너지형 입니다.", "관계의 즐거움과 생기를 붙여넣는 매력의 소유자!");
+            case 2 -> new TypeText("따뜻한 통찰력형 입니다.", "깊은 교감의 매력 소유자!");
+            case 3 -> new TypeText("든든한 신뢰형 입니다.", "관계의 일정을 주는 든든한 매력의 소유자!");
+            default -> new TypeText("세련된 감각형 입니다.", "만남을 빛내는 개성 넘치는 매력의 소유자!");
+        };
+    }
+    private record TypeText(String title, String content) {}
 
     /** 기본정보 + 성별 + 성향테스트 (한 번에 완료) */
     @Transactional
@@ -69,7 +102,7 @@ public class UserService {
         }
         u.setGender(req.getGender());
 
-        // 성향답변 항상 수집
+        // 성향답변 수집
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
@@ -77,30 +110,28 @@ public class UserService {
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
 
-        // 타입 갱신
+        // 내부 저장용 typeId 산출(응답에는 노출 안 함)
         u.setTypeId(determineTypeId(answers));
 
-        // 답변 변경 시에만 요약 재생성
+        // 답변 변경 시 특징 요약 재생성(특징만 DB에 저장 유지)
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
             if (!newJson.equals(oldJson)) {
-                String summary = textGenClient.summarizeDatingStyle(answers);
-                u.setStyleSummary(summary);
+                DatingStyleSummary ds = textGenClient.summarizeDatingStyle(answers);
+                u.setStyleSummary(ds.getFeature());
             }
             u.setDatingStyleAnswersJson(newJson);
         } catch (Exception e) {
-            u.setDatingStyleAnswersJson("{}"); // 실패 시 기본값
+            u.setDatingStyleAnswersJson("{}");
         }
 
-        // 프로필 완료
         u.setProfileComplete(true);
         if (u.getMatchCredits() <= 0) u.setMatchCredits(2);
 
         return userRepository.save(u);
     }
 
-    /** 한 줄 소개 작성/수정 */
     @Transactional
     public User updateIntroduce(UUID userId, String introduce) {
         User u = get(userId);
@@ -108,8 +139,24 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    /** 내 프로필 응답 DTO 매핑 (두 자리 년생만) */
+    private Map<String,String> parseAnswers(String json){
+        try {
+            if (json == null || json.isBlank()) return Collections.emptyMap();
+            return om.readValue(json, new TypeReference<>() {
+            });
+        } catch (Exception e) {
+            return Collections.emptyMap();
+        }
+    }
+
+    /** 내 프로필 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public UserProfileResponse toResponse(User u){
+        int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
+        TypeText tt = toTypeText(typeId);
+
+        Map<String,String> answers = parseAnswers(u.getDatingStyleAnswersJson());
+        DatingStyleSummary ds = answers.isEmpty() ? null : textGenClient.summarizeDatingStyle(answers);
+
         return UserProfileResponse.builder()
                 .userId(u.getId())
                 .name(u.getName())
@@ -119,14 +166,24 @@ public class UserService {
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
-                .typeId(u.getTypeId())
+                .typeTitle(tt.title())
+                .typeContent(tt.content())
+                .typeImageUrl(imageUrlByType(typeId))
                 .styleSummary(u.getStyleSummary())
+                .recommendedPartner(ds != null ? ds.getRecommendedPartner() : null)
+                .tags(ds != null ? ds.getTags() : List.of())
                 .introduce(u.getIntroduce())
                 .build();
     }
 
-    /** 상대 상세 응답 DTO 매핑*/
+    /** 상대 상세 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public PeerDetailResponse toPeerResponse(User u){
+        int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
+        TypeText tt = toTypeText(typeId);
+
+        Map<String,String> answers = parseAnswers(u.getDatingStyleAnswersJson());
+        DatingStyleSummary ds = answers.isEmpty() ? null : textGenClient.summarizeDatingStyle(answers);
+
         return PeerDetailResponse.builder()
                 .userId(u.getId())
                 .name(u.getName())
@@ -134,8 +191,12 @@ public class UserService {
                 .studentNo(u.getStudentNo())
                 .birthYear(u.getBirthYear())
                 .gender(u.getGender())
-                .typeId(u.getTypeId())
+                .typeTitle(tt.title())
+                .typeContent(tt.content())
+                .typeImageUrl(imageUrlByType(typeId))
                 .styleSummary(u.getStyleSummary())
+                .recommendedPartner(ds != null ? ds.getRecommendedPartner() : null)
+                .tags(ds != null ? ds.getTags() : List.of())
                 .introduce(u.getIntroduce())
                 .build();
     }

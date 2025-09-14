@@ -4,6 +4,7 @@ import com.example.uni.user.domain.Gender;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -15,7 +16,11 @@ public class PeerDetailResponse {
     private String studentNo;
     private String birthYear;
     private Gender gender;
-    private Integer typeId;
+    private String typeTitle;
+    private String typeContent;
+    private String typeImageUrl;
     private String styleSummary;
+    private String recommendedPartner;
+    private List<String> tags;
     private String introduce;
 }
