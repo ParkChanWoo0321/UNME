@@ -72,8 +72,8 @@ public class User extends BaseTimeEntity {
     @Column(name = "introduce", length = 100)
     private String introduce;
 
-    @Column(name = "instagram_id", length = 30)
-    private String instagramId;
+    @Column(name = "instagram_url")
+    private String instagramUrl;
 
     @Column(name = "style_recommended_partner", length = 600)
     private String styleRecommendedPartner;

@@ -136,6 +136,34 @@ public class UserService {
         return userRepository.save(u);
     }
 
+    /** 인스타 입력(아이디 또는 URL) → URL로 정규화해 저장 */
+    @Transactional
+    public User updateInstagram(UUID userId, String raw) {
+        User u = get(userId);
+        u.setInstagramUrl(toInstagramUrlOrNull(raw));
+        return userRepository.save(u);
+    }
+
+    /** 아이디만 오면 URL로 변환, @는 제거, 허용문자/길이 검증, URL로 오면 그대로 저장 */
+    private String toInstagramUrlOrNull(String raw) {
+        if (raw == null) return null;
+        String v = raw.trim();
+        if (v.isEmpty()) return null;
+
+        // 이미 URL로 온 경우
+        if (v.startsWith("http://") || v.startsWith("https://")) {
+            return v;
+        }
+        // @ 제거
+        if (v.charAt(0) == '@') v = v.substring(1);
+
+        // 허용문자/길이 검증
+        if (!v.matches("^[A-Za-z0-9._]{1,30}$")) {
+            return null;
+        }
+        return "https://www.instagram.com/" + v;
+    }
+
     private List<String> parseTags(String json){
         try {
             if (json == null || json.isBlank()) return List.of();
@@ -171,18 +199,16 @@ public class UserService {
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
                 .introduce(u.getIntroduce())
-                .instagramId(u.getInstagramId())
+                .instagramUrl(u.getInstagramUrl())
                 .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
                 .updatedAt(u.getUpdatedAt() != null ? u.getUpdatedAt().toString() : null)
                 .build();
     }
 
-
     /** 상대 상세 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public PeerDetailResponse toPeerResponse(User u){
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
-
         List<String> tags = parseTags(u.getStyleTagsJson());
 
         return PeerDetailResponse.builder()
@@ -199,17 +225,7 @@ public class UserService {
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
                 .introduce(u.getIntroduce())
-                .instagramId(u.getInstagramId())
+                .instagramUrl(u.getInstagramUrl())
                 .build();
-    }
-
-    @Transactional
-    public User updateInstagram(UUID userId, String instagramIdRaw) {
-        User u = get(userId);
-        String v = (instagramIdRaw == null) ? null : instagramIdRaw.trim();
-        if (v != null && !v.isEmpty() && v.charAt(0) == '@') v = v.substring(1);
-        if (v != null && v.isBlank()) v = null;
-        u.setInstagramId(v);
-        return userRepository.save(u);
     }
 }

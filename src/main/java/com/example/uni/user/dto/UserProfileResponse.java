@@ -29,7 +29,7 @@ public class UserProfileResponse {
     private String recommendedPartner;
     private List<String> tags;
     private String introduce;
-    private String instagramId;
+    private String instagramUrl;
     private String createdAt;
     private String updatedAt;
 }

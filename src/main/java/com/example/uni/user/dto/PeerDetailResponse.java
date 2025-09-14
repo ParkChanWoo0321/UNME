@@ -23,5 +23,5 @@ public class PeerDetailResponse {
     private String recommendedPartner;
     private List<String> tags;
     private String introduce;
-    private String instagramId;
+    private String instagramUrl;
 }
