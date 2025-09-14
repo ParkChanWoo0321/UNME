@@ -26,11 +26,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
         String[] patterns = Arrays.stream(wsAllowedOrigins.split(","))
                 .map(String::trim)
-                .filter(s -> !s.isBlank())
+                .filter(s -> !s.isEmpty())   // isBlank() 대신
                 .toArray(String[]::new);
 
+        // Native WebSocket만 사용 (SockJS 제거)
         registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns);
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).withSockJS();
     }
 
     @Override

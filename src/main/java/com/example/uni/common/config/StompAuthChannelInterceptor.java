@@ -9,6 +9,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
 
@@ -28,13 +29,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         if (StompCommand.CONNECT.equals(acc.getCommand())) {
             String raw = acc.getFirstNativeHeader("Authorization");
             if (raw == null) raw = acc.getFirstNativeHeader("authorization");
-            raw = (raw == null) ? null : raw.trim();
-            if (raw == null || raw.length() < 7) throw new IllegalArgumentException("Missing Authorization");
+            if (raw == null) throw new AccessDeniedException("Missing Authorization");
+            raw = raw.trim();
+            if (raw.length() < 7 || !raw.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                throw new AccessDeniedException("Bearer required");
+            }
 
-            if (!raw.regionMatches(true, 0, "Bearer ", 0, 7))
-                throw new IllegalArgumentException("Bearer required");
-            String jwt = raw.substring(7).replaceAll("\\s+", "");
-
+            String jwt = raw.substring(7).trim();
             String userId = jwtProvider.validateAccessAndGetSubject(jwt);
 
             var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
@@ -57,7 +58,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         if (StompCommand.SUBSCRIBE.equals(acc.getCommand()) || StompCommand.SEND.equals(acc.getCommand())) {
-            if (acc.getUser() == null) throw new IllegalArgumentException("Unauthenticated");
+            if (acc.getUser() == null) throw new AccessDeniedException("Unauthenticated");
         }
         return message;
     }
