@@ -12,7 +12,7 @@ import com.example.uni.user.repo.UserRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,23 +25,19 @@ public class UserService {
     private final UserRepository userRepository;
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
-
-    // 타입별 프로필 이미지 URL (properties에서 주입) — 기본값을 비워서 부팅 실패 방지
-    @Value("${app.type-image.1:}")
-    private String typeImage1;
-    @Value("${app.type-image.2:}")
-    private String typeImage2;
-    @Value("${app.type-image.3:}")
-    private String typeImage3;
-    @Value("${app.type-image.4:}")
-    private String typeImage4;
+    private final Environment env; // ★ 프로퍼티는 런타임 조회
 
     private String imageUrlByType(int typeId){
+        // 프로퍼티 없으면 "" 반환 → 절대 부팅 실패 없음
+        String u1 = env.getProperty("app.type-image.1", "");
+        String u2 = env.getProperty("app.type-image.2", "");
+        String u3 = env.getProperty("app.type-image.3", "");
+        String u4 = env.getProperty("app.type-image.4", "");
         return switch (typeId) {
-            case 1 -> typeImage1;
-            case 2 -> typeImage2;
-            case 3 -> typeImage3;
-            default -> typeImage4;
+            case 1 -> u1;
+            case 2 -> u2;
+            case 3 -> u3;
+            default -> u4;
         };
     }
 
@@ -167,7 +163,7 @@ public class UserService {
                 .matchCredits(u.getMatchCredits())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(imageUrlByType(typeId)) // 프로퍼티 미설정 시 빈 문자열
+                .typeImageUrl(imageUrlByType(typeId)) // 프로퍼티 없으면 ""
                 .styleSummary(u.getStyleSummary())
                 .recommendedPartner(ds != null ? ds.getRecommendedPartner() : null)
                 .tags(ds != null ? ds.getTags() : List.of())
