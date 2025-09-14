@@ -115,7 +115,7 @@ public class UserService {
                 .name(u.getName())
                 .department(u.getDepartment())
                 .studentNo(u.getStudentNo())
-                .birthYear(u.getBirthYear())   // "90" ~ "06"
+                .birthYear(u.getBirthYear())
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
@@ -125,16 +125,17 @@ public class UserService {
                 .build();
     }
 
-    /** 상대 상세 응답 DTO 매핑 (두 자리 년생만) */
+    /** 상대 상세 응답 DTO 매핑*/
     public PeerDetailResponse toPeerResponse(User u){
         return PeerDetailResponse.builder()
                 .userId(u.getId())
                 .name(u.getName())
                 .department(u.getDepartment())
                 .studentNo(u.getStudentNo())
-                .birthYear(u.getBirthYear())   // "90" ~ "06"
+                .birthYear(u.getBirthYear())
                 .gender(u.getGender())
                 .typeId(u.getTypeId())
+                .styleSummary(u.getStyleSummary())
                 .introduce(u.getIntroduce())
                 .build();
     }

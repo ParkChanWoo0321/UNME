@@ -12,7 +12,6 @@ public class AfterCommitExecutor {
                 @Override public void afterCommit() { task.run(); }
             });
         } else {
-            // 트랜잭션 밖이면 즉시 실행
             task.run();
         }
     }

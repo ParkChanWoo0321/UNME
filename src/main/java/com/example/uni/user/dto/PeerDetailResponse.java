@@ -16,5 +16,6 @@ public class PeerDetailResponse {
     private String birthYear;
     private Gender gender;
     private Integer typeId;
+    private String styleSummary;
     private String introduce;
 }

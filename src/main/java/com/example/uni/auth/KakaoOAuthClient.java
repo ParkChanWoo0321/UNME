@@ -9,8 +9,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.util.Map;
-
 @Component
 public class KakaoOAuthClient {
 
@@ -25,7 +23,7 @@ public class KakaoOAuthClient {
     private String clientSecret;
 
     @Value("${kakao.admin-key}")
-    private String adminKey; // 🔹 unlink에 사용
+    private String adminKey;
 
     private WebClient webClient(String base) {
         return WebClient.builder().baseUrl(base).build();
@@ -57,12 +55,17 @@ public class KakaoOAuthClient {
                 .block();
     }
 
-    // 🔹 Admin Key 기반 회원탈퇴 (서비스 JWT만으로 처리 가능)
     public void unlinkWithAdminKey(String kakaoId) {
         WebClient wc = webClient(apiBase);
+
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("target_id_type", "user_id");
+        form.add("target_id", kakaoId);
+
         wc.post().uri("/v1/user/unlink")
                 .header("Authorization", "KakaoAK " + adminKey)
-                .bodyValue(Map.of("target_id_type", "user_id", "target_id", kakaoId))
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .bodyValue(form)
                 .retrieve()
                 .bodyToMono(Void.class)
                 .block();
@@ -94,12 +97,6 @@ public class KakaoOAuthClient {
 
             @JsonProperty("profile")
             private Profile profile;
-
-            @JsonProperty("has_gender")
-            private Boolean hasGender;
-            @JsonProperty("gender_needs_agreement")
-            private Boolean genderNeedsAgreement;
-            private String gender;
 
             @Data
             public static class Profile {

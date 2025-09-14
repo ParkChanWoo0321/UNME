@@ -1,6 +1,5 @@
 package com.example.uni.auth;
 
-import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,13 +23,8 @@ public class OAuthService {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
         final String kakaoId = String.valueOf(me.getId());
-        final Gender resolvedGender = resolveGender(me);
 
         User user = userRepository.findByKakaoId(kakaoId)
-                .map(u -> {
-                    if (resolvedGender != null && u.getGender() == null) u.setGender(resolvedGender);
-                    return u;
-                })
                 .orElseGet(() -> User.builder()
                         .kakaoId(kakaoId)
                         .email(me.getKakaoAccount().getEmail())
@@ -63,18 +57,6 @@ public class OAuthService {
         return jwtProvider.generateRefresh(userId);
     }
 
-    private Gender resolveGender(KakaoOAuthClient.KakaoUser me) {
-        var acc = me.getKakaoAccount();
-        if (acc == null) return null;
-        if (Boolean.TRUE.equals(acc.getHasGender()) && acc.getGender() != null) {
-            String g = acc.getGender();
-            if ("male".equalsIgnoreCase(g)) return Gender.MALE;
-            if ("female".equalsIgnoreCase(g)) return Gender.FEMALE;
-        }
-        return null;
-    }
-
-    // 🔹 회원탈퇴 (JWT userId → kakaoId 찾아서 unlink)
     public void unlinkUser(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
