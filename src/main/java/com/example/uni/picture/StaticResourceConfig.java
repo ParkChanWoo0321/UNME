@@ -14,6 +14,7 @@ public class StaticResourceConfig implements WebMvcConfigurer {
     @Value("${app.upload.dir:./uploads}")
     private String uploadDir;
 
+    @Value("/api")
     @Override
     public void addResourceHandlers(@NonNull ResourceHandlerRegistry registry) {
         String root = Paths.get(uploadDir).toAbsolutePath().toString().replace("\\", "/");
