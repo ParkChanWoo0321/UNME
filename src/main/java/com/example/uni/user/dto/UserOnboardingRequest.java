@@ -20,7 +20,6 @@ public class UserOnboardingRequest {
     @NotBlank(message = "학번을 확인해주세요.")
     private String studentNo;
 
-    // 두 자리: 90~99, 00~06
     @NotBlank(message = "출생 연도를 입력하세요.")
     @Pattern(
             regexp = "^(199[0-9]|200[0-6])$",

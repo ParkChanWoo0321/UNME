@@ -17,7 +17,7 @@ public class EventService {
     private final VerifyCodeRepository codeRepo;
     private final UserRepository userRepo;
 
-    /** DB에 미리 저장된 코드가 맞으면 3크레딧 지급(1회성, 선착순 1명만 성공) */
+    /** 유효 코드 → 매칭/신호 크레딧을 모두 5로 설정 (1회성) */
     @Transactional
     public Map<String, Object> redeem(UUID userId, String code){
         String normalized = code == null ? "" : code.trim().toUpperCase();
@@ -27,7 +27,8 @@ public class EventService {
         if (changed == 0) throw new ApiException(ErrorCode.COUPON_INVALID_OR_EXPIRED);
 
         var user = userRepo.findById(userId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
-        user.setMatchCredits(user.getMatchCredits() + 3);
-        return Map.of("ok", true, "creditsAfter", user.getMatchCredits());
+        user.setMatchCredits(5);
+        user.setSignalCredits(5);
+        return Map.of("ok", true, "matchCredits", user.getMatchCredits(), "signalCredits", user.getSignalCredits());
     }
 }

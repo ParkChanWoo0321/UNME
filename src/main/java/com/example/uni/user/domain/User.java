@@ -57,6 +57,9 @@ public class User extends BaseTimeEntity {
     @Column(name = "match_credits", nullable = false)
     private int matchCredits;
 
+    @Column(name = "signal_credits", nullable = false)
+    private int signalCredits;
+
     @Version
     private Long version;
 

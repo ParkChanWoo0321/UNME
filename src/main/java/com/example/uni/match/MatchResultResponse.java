@@ -9,6 +9,5 @@ import java.util.Map;
 @Getter
 @Builder
 public class MatchResultResponse {
-    private int ruleHit;
     private List<Map<String, Object>> candidates;
 }

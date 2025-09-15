@@ -25,7 +25,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
-    private final Environment env; // 프로퍼티는 런타임 조회
+    private final Environment env;
 
     private String imageUrlByType(int typeId){
         String u1 = env.getProperty("app.type-image.1", "");
@@ -49,7 +49,6 @@ public class UserService {
         return !userRepository.existsByNameIgnoreCase(name);
     }
 
-    /** A/B 개수로 최종 타입 산출 (규칙 유지) */
     private static int determineTypeId(Map<String,String> answers) {
         int aCnt = 0;
         for (int i = 1; i <= 10; i++) {
@@ -58,14 +57,13 @@ public class UserService {
         }
         int bCnt = 10 - aCnt;
 
-        if (aCnt >= 7) return 1;   // 활발한 에너지
-        if (bCnt >= 7) return 2;   // 따뜻한 통찰력
-        if (aCnt == 5) return 4;   // 5:5 동률은 4번 고정
-        if (aCnt <= 4) return 3;   // 든든한 신뢰
-        return 4;                  // 세련된 감각
+        if (aCnt >= 7) return 1;
+        if (bCnt >= 7) return 2;
+        if (aCnt == 5) return 4;
+        if (aCnt <= 4) return 3;
+        return 4;
     }
 
-    /** typeId → 제목/내용 텍스트 매핑 (응답에만 사용) */
     private static TypeText toTypeText(int typeId){
         return switch (typeId) {
             case 1 -> new TypeText("활발한 에너지형", "관계의 즐거움과 생기를 붙여넣는 매력의 소유자!");
@@ -97,7 +95,6 @@ public class UserService {
         }
         u.setGender(req.getGender());
 
-        // 성향답변 수집
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
@@ -105,10 +102,8 @@ public class UserService {
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
 
-        // 내부 저장용 typeId 산출(응답에는 노출 안 함)
         u.setTypeId(determineTypeId(answers));
 
-        // 답변 변경 시 GPT 재생성 → DB에 3종 저장
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -124,7 +119,10 @@ public class UserService {
         }
 
         u.setProfileComplete(true);
-        if (u.getMatchCredits() <= 0) u.setMatchCredits(2);
+
+        // 기본값 보장: 매칭 3, 신호 3
+        if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
+        if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
 
         return userRepository.save(u);
     }
@@ -136,7 +134,6 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    /** 인스타 입력(아이디 또는 URL) → URL로 정규화해 저장 */
     @Transactional
     public User updateInstagram(UUID userId, String raw) {
         User u = get(userId);
@@ -144,20 +141,16 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    /** 아이디만 오면 URL로 변환, @는 제거, 허용문자/길이 검증, URL로 오면 그대로 저장 */
     private String toInstagramUrlOrNull(String raw) {
         if (raw == null) return null;
         String v = raw.trim();
         if (v.isEmpty()) return null;
 
-        // 이미 URL로 온 경우
         if (v.startsWith("http://") || v.startsWith("https://")) {
             return v;
         }
-        // @ 제거
         if (v.charAt(0) == '@') v = v.substring(1);
 
-        // 허용문자/길이 검증
         if (!v.matches("^[A-Za-z0-9._]{1,30}$")) {
             return null;
         }
@@ -173,7 +166,6 @@ public class UserService {
         }
     }
 
-    /** 내 프로필 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public UserProfileResponse toResponse(User u) {
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
@@ -191,6 +183,7 @@ public class UserService {
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
+                .signalCredits(u.getSignalCredits()) // 추가
                 .version(u.getVersion())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
@@ -205,7 +198,6 @@ public class UserService {
                 .build();
     }
 
-    /** 상대 상세 응답 DTO 매핑 (typeId 미노출 + 이미지 URL 포함) */
     public PeerDetailResponse toPeerResponse(User u){
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);

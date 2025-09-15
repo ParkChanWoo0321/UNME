@@ -1,4 +1,3 @@
-// src/main/java/com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
 import com.example.uni.chat.ChatRoom;
@@ -28,7 +27,7 @@ public class MatchingService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatService chatService;
     private final RealtimeNotifier notifier;
-    private final AfterCommitExecutor afterCommit; // ★ 추가
+    private final AfterCommitExecutor afterCommit;
 
     /** 매칭 시작: 이성/다른 학과/본인 제외/기보낸신호 제외/기존채팅 없음 → 랜덤 3명 (크레딧 1 차감) */
     @Transactional
@@ -49,25 +48,30 @@ public class MatchingService {
                 .findByGenderAndDepartmentNotAndProfileCompleteTrueAndIdNot(
                         opposite, me.getDepartment(), me.getId()
                 );
+
         Set<UUID> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
+
         List<Map<String,Object>> candidates = new ArrayList<>();
         Collections.shuffle(pool);
         for (User u : pool) {
             if (candidates.size() == 3) break;
             if (alreadySignaled.contains(u.getId())) continue;
+
             boolean hasRoom = chatRoomRepository.findByUserAAndUserB(me, u).isPresent()
                     || chatRoomRepository.findByUserBAndUserA(u, me).isPresent();
             if (hasRoom) continue;
+
             candidates.add(publicUserCard(u));
         }
+
+        // ruleHit 제거
         return MatchResultResponse.builder()
-                .ruleHit(0)
                 .candidates(candidates)
                 .build();
     }
 
-    /** 신호 보내기(재발송 허용: CANCELED/DECLINED → SENT로 복구) + 실시간 알림 */
+    /** 신호 보내기: 최초 전송만 1회 차감, 재발송은 차감 없음 */
     @Transactional
     public Map<String,Object> sendSignal(UUID meId, UUID targetId){
         if (meId.equals(targetId)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
@@ -89,10 +93,14 @@ public class MatchingService {
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
 
         if (s == null) {
+            // 최초 전송 시 신호 크레딧 확인/차감
+            if (me.getSignalCredits() < 1)
+                throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
+            me.setSignalCredits(me.getSignalCredits() - 1);
+
             s = signalRepository.save(Signal.builder()
                     .sender(me).receiver(target).status(Signal.Status.SENT).build());
 
-            // ★ 커밋 후 알림
             afterCommit.run(() -> notifier.toUser(
                     target.getId(),
                     RealtimeNotifier.Q_SIGNAL,
@@ -104,10 +112,10 @@ public class MatchingService {
                 throw new ApiException(ErrorCode.CONFLICT);
             }
             if (s.getStatus() != Signal.Status.SENT) {
+                // 재발송(복구): 차감 없음
                 s.setStatus(Signal.Status.SENT);
                 signalRepository.save(s);
 
-                // ★ 커밋 후 알림
                 afterCommit.run(() -> notifier.toUser(
                         target.getId(),
                         RealtimeNotifier.Q_SIGNAL,
@@ -129,7 +137,6 @@ public class MatchingService {
         s.setStatus(Signal.Status.CANCELED);
         signalRepository.save(s);
 
-        // ★ 커밋 후 알림
         afterCommit.run(() -> notifier.toUser(
                 s.getReceiver().getId(), RealtimeNotifier.Q_SIGNAL,
                 Map.of("type","CANCELED","fromUser", publicUserCard(s.getSender()))
@@ -147,7 +154,6 @@ public class MatchingService {
         s.setStatus(Signal.Status.DECLINED);
         signalRepository.save(s);
 
-        // ★ 커밋 후 알림
         afterCommit.run(() -> notifier.toUser(
                 s.getSender().getId(), RealtimeNotifier.Q_SIGNAL,
                 Map.of("type","DECLINED","fromUser", publicUserCard(s.getReceiver()))
@@ -177,7 +183,6 @@ public class MatchingService {
         Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getReceiver()));
         Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getSender()));
 
-        // ★ 커밋 후 알림 (두 건 함께)
         afterCommit.run(() -> {
             notifier.toUser(s.getSender().getId(),   RealtimeNotifier.Q_MATCH, forSender);
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
@@ -186,7 +191,6 @@ public class MatchingService {
         return Map.of("roomId", room.getId(), "mutual", true);
     }
 
-    /** 내가 보낸 신호 목록 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listSentSignals(UUID meId){
         User me = userRepository.findById(meId)
@@ -205,7 +209,6 @@ public class MatchingService {
         return out;
     }
 
-    /** 내가 받은 신호 목록 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listReceivedSignals(UUID meId){
         User me = userRepository.findById(meId)
@@ -224,7 +227,6 @@ public class MatchingService {
         return out;
     }
 
-    /** 후보/신호/매칭 공통 공개 카드 */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("name", u.getName());

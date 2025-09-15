@@ -21,6 +21,7 @@ public class UserProfileResponse {
     private Gender gender;
     private boolean profileComplete;
     private int matchCredits;
+    private int signalCredits;
     private Long version;
     private String typeTitle;
     private String typeContent;
