@@ -40,6 +40,24 @@ public class UserService {
         };
     }
 
+    // ★ 추가: 두 번째 이미지 URL 해석
+    private String imageUrlByType2(int typeId){
+        String u1 = env.getProperty("app.type-image2.1", "");
+        String u2 = env.getProperty("app.type-image2.2", "");
+        String u3 = env.getProperty("app.type-image2.3", "");
+        String u4 = env.getProperty("app.type-image2.4", "");
+        return switch (typeId) {
+            case 1 -> u1;
+            case 2 -> u2;
+            case 3 -> u3;
+            default -> u4;
+        };
+    }
+
+    // ★ 추가: 매칭 카드 등 외부에서 쓰기 위한 공개 메서드
+    public String resolveTypeImage(int typeId)  { return imageUrlByType(typeId); }
+    public String resolveTypeImage2(int typeId) { return imageUrlByType2(typeId); }
+
     public User get(UUID id){
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
@@ -183,11 +201,12 @@ public class UserService {
                 .gender(u.getGender())
                 .profileComplete(u.isProfileComplete())
                 .matchCredits(u.getMatchCredits())
-                .signalCredits(u.getSignalCredits()) // 추가
+                .signalCredits(u.getSignalCredits())
                 .version(u.getVersion())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
                 .typeImageUrl(imageUrlByType(typeId))
+                .typeImageUrl2(imageUrlByType2(typeId)) // ★ 추가
                 .styleSummary(u.getStyleSummary())
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
@@ -213,6 +232,7 @@ public class UserService {
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
                 .typeImageUrl(imageUrlByType(typeId))
+                .typeImageUrl2(imageUrlByType2(typeId)) // ★ 추가
                 .styleSummary(u.getStyleSummary())
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)

@@ -26,6 +26,7 @@ public class UserProfileResponse {
     private String typeTitle;
     private String typeContent;
     private String typeImageUrl;
+    private String typeImageUrl2;
     private String styleSummary;
     private String recommendedPartner;
     private List<String> tags;

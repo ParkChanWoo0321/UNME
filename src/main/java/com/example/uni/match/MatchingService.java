@@ -11,6 +11,7 @@ import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
+import com.example.uni.user.service.UserService; // ★ 추가
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class MatchingService {
     private final ChatService chatService;
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
+    private final UserService userService; // ★ 추가
 
     /** 매칭 시작: 이성/다른 학과/본인 제외/기보낸신호 제외/기존채팅 없음 → 랜덤 3명
      *  후보가 1명 이상일 때만 매칭 크레딧 1 차감
@@ -175,8 +177,11 @@ public class MatchingService {
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
         if (!s.getReceiver().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
+
+        // 상태 MUTUAL → 바로 삭제 예정이지만 일단 일관성을 위해 저장
         s.setStatus(Signal.Status.MUTUAL);
         signalRepository.save(s);
+
         signalRepository.findBySenderAndReceiver(s.getReceiver(), s.getSender())
                 .ifPresent(other -> {
                     if (other.getStatus() != Signal.Status.MUTUAL) {
@@ -194,6 +199,10 @@ public class MatchingService {
             notifier.toUser(s.getSender().getId(),   RealtimeNotifier.Q_MATCH, forSender);
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
         });
+
+        // ★ 매칭 성사 → 양방향 신호 삭제
+        signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
+        signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
         return Map.of("roomId", room.getId(), "mutual", true);
     }
@@ -239,7 +248,14 @@ public class MatchingService {
         card.put("name", u.getName());
         card.put("department", u.getDepartment());
         card.put("introduce", u.getIntroduce());
-        card.put("typeId", u.getTypeId());
+
+        int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
+        card.put("typeId", typeId);
+
+        // ★ 추가: 카드에도 이미지 2종 내려주기
+        card.put("typeImageUrl",  userService.resolveTypeImage(typeId));
+        card.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+
         return card;
     }
 

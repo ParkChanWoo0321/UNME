@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -25,13 +26,19 @@ public class TypeImageUploadController {
     private String contextPath; // 예: "/api" 또는 ""
 
     @PostMapping(value = "/{type}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Object upload(@PathVariable int type,
+    public Object upload(@PathVariable String type,
                          @RequestPart("file") MultipartFile file,
                          HttpServletRequest req) throws IOException {
 
-        if (type < 1 || type > 4) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4만 허용");
+        // 허용 타입: 1,2,3,4,2.1~2.4
+        List<String> allowedTypes = List.of(
+                "1", "2", "3", "4",
+                "2.1", "2.2", "2.3", "2.4"
+        );
+        if (!allowedTypes.contains(type)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4 또는 2.1~2.4만 허용");
         }
+
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file 파트가 비어있음");
         }
@@ -44,7 +51,7 @@ public class TypeImageUploadController {
         if (!StringUtils.hasText(ext)) ext = "png";
         ext = ext.toLowerCase();
 
-        String filename = "type" + type + "." + ext;
+        String filename = "type" + type + "." + ext; // ex) type1.png, type2.1.png
         Path target = dir.resolve(filename);
         file.transferTo(target.toFile());
 

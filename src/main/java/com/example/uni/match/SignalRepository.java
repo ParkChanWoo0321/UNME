@@ -12,4 +12,5 @@ public interface SignalRepository extends JpaRepository<Signal, UUID> {
     List<Signal> findAllBySenderOrderByCreatedAtDesc(User sender);
     List<Signal> findAllByReceiverOrderByCreatedAtDesc(User receiver);
     List<Signal> findAllBySender(User sender);
+    void deleteBySenderAndReceiver(User sender, User receiver);
 }
