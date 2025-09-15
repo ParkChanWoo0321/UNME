@@ -206,7 +206,7 @@ public class UserService {
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
                 .typeImageUrl(imageUrlByType(typeId))
-                .typeImageUrl2(imageUrlByType2(typeId)) // ★ 추가
+                .typeImageUrl2(imageUrlByType2(typeId))
                 .styleSummary(u.getStyleSummary())
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)
@@ -232,7 +232,7 @@ public class UserService {
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
                 .typeImageUrl(imageUrlByType(typeId))
-                .typeImageUrl2(imageUrlByType2(typeId)) // ★ 추가
+                .typeImageUrl2(imageUrlByType2(typeId))
                 .styleSummary(u.getStyleSummary())
                 .recommendedPartner(u.getStyleRecommendedPartner())
                 .tags(tags)

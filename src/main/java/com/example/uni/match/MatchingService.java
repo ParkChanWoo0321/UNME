@@ -11,7 +11,7 @@ import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
-import com.example.uni.user.service.UserService; // ★ 추가
+import com.example.uni.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,13 +27,11 @@ public class MatchingService {
     private final SignalRepository signalRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatService chatService;
-    private final RealtimeNotifier notifier;
-    private final AfterCommitExecutor afterCommit;
-    private final UserService userService; // ★ 추가
+    private final RealtimeNotifier notifier;       // 알림 유지
+    private final AfterCommitExecutor afterCommit; // 알림 커밋 후 전송
+    private final UserService userService;
 
-    /** 매칭 시작: 이성/다른 학과/본인 제외/기보낸신호 제외/기존채팅 없음 → 랜덤 3명
-     *  후보가 1명 이상일 때만 매칭 크레딧 1 차감
-     */
+    /** 매칭 시작 */
     @Transactional
     public MatchResultResponse requestMatch(UUID meId){
         User me = userRepository.findById(meId)
@@ -41,7 +39,6 @@ public class MatchingService {
 
         if (!me.isProfileComplete() || me.getGender() == null)
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
-
         if (me.getMatchCredits() < 1)
             throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
 
@@ -65,23 +62,20 @@ public class MatchingService {
                     || chatRoomRepository.findByUserBAndUserA(u, me).isPresent();
             if (hasRoom) continue;
 
-            candidates.add(publicUserCard(u));
+            // ★ 변경: 후보 응답에는 typeId, typeImageUrl2 제외
+            candidates.add(matchCandidateCard(u));
         }
 
         if (candidates.isEmpty()) {
-            return MatchResultResponse.builder()
-                    .candidates(candidates)
-                    .build();
+            return MatchResultResponse.builder().candidates(candidates).build();
         }
 
         me.setMatchCredits(me.getMatchCredits() - 1);
 
-        return MatchResultResponse.builder()
-                .candidates(candidates)
-                .build();
+        return MatchResultResponse.builder().candidates(candidates).build();
     }
 
-    /** 신호 보내기: 최초 전송만 1회 차감, 재발송은 차감 없음 */
+    /** 신호 보내기 */
     @Transactional
     public Map<String,Object> sendSignal(UUID meId, UUID targetId){
         if (meId.equals(targetId)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
@@ -103,31 +97,24 @@ public class MatchingService {
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
 
         if (s == null) {
-            if (me.getSignalCredits() < 1)
-                throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
+            if (me.getSignalCredits() < 1) throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
             me.setSignalCredits(me.getSignalCredits() - 1);
 
             s = signalRepository.save(Signal.builder()
                     .sender(me).receiver(target).status(Signal.Status.SENT).build());
 
             afterCommit.run(() -> notifier.toUser(
-                    target.getId(),
-                    RealtimeNotifier.Q_SIGNAL,
+                    target.getId(), RealtimeNotifier.Q_SIGNAL,
                     Map.of("type","SENT","fromUser", publicUserCard(me))
             ));
-
         } else {
-            if (s.getStatus() == Signal.Status.MUTUAL) {
-                throw new ApiException(ErrorCode.CONFLICT);
-            }
+            if (s.getStatus() == Signal.Status.MUTUAL) throw new ApiException(ErrorCode.CONFLICT);
             if (s.getStatus() != Signal.Status.SENT) {
-                // 재발송(복구): 차감 없음
                 s.setStatus(Signal.Status.SENT);
                 signalRepository.save(s);
 
                 afterCommit.run(() -> notifier.toUser(
-                        target.getId(),
-                        RealtimeNotifier.Q_SIGNAL,
+                        target.getId(), RealtimeNotifier.Q_SIGNAL,
                         Map.of("type","SENT","fromUser", publicUserCard(me))
                 ));
             }
@@ -136,13 +123,14 @@ public class MatchingService {
         return Map.of("signalId", s.getId(), "status", s.getStatus().name());
     }
 
-    /** 신호 취소(보낸 사람) — SENT에서만 가능 */
+    /** 신호 취소(보낸 사람) */
     @Transactional
     public Map<String,Object> cancelSignal(UUID meId, UUID signalId){
         Signal s = signalRepository.findById(signalId)
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
         if (!s.getSender().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
+
         s.setStatus(Signal.Status.CANCELED);
         signalRepository.save(s);
 
@@ -153,13 +141,14 @@ public class MatchingService {
         return Map.of("ok", true);
     }
 
-    /** 신호 거절(받은 사람) — SENT에서만 가능 */
+    /** 신호 거절(받은 사람) */
     @Transactional
     public Map<String,Object> declineSignal(UUID meId, UUID signalId){
         Signal s = signalRepository.findById(signalId)
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
         if (!s.getReceiver().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
+
         s.setStatus(Signal.Status.DECLINED);
         signalRepository.save(s);
 
@@ -170,7 +159,7 @@ public class MatchingService {
         return Map.of("ok", true);
     }
 
-    /** 신호 수락(받은 사람) — SENT에서만 가능 + 방 생성/재사용 */
+    /** 신호 수락(받은 사람) — 방 생성/재사용 + 성사 알림 + 신호 삭제 */
     @Transactional
     public Map<String,Object> acceptSignal(UUID meId, UUID signalId){
         Signal s = signalRepository.findById(signalId)
@@ -178,7 +167,7 @@ public class MatchingService {
         if (!s.getReceiver().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
-        // 상태 MUTUAL → 바로 삭제 예정이지만 일단 일관성을 위해 저장
+        // 일관성 유지용 MUTUAL 저장 (곧 삭제)
         s.setStatus(Signal.Status.MUTUAL);
         signalRepository.save(s);
 
@@ -200,7 +189,7 @@ public class MatchingService {
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
         });
 
-        // ★ 매칭 성사 → 양방향 신호 삭제
+        // 매칭 성사 → 양방향 신호 삭제
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
@@ -243,6 +232,7 @@ public class MatchingService {
         return out;
     }
 
+    /** 다른 API에서 쓰는 기본 카드 (typeId, typeImageUrl2 포함) */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("name", u.getName());
@@ -251,11 +241,20 @@ public class MatchingService {
 
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         card.put("typeId", typeId);
-
-        // ★ 추가: 카드에도 이미지 2종 내려주기
         card.put("typeImageUrl",  userService.resolveTypeImage(typeId));
         card.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+        return card;
+    }
 
+    /** 매칭 후보 전용 카드 (typeId, typeImageUrl2 제외) */
+    private Map<String,Object> matchCandidateCard(User u) {
+        Map<String,Object> card = new LinkedHashMap<>();
+        card.put("name", u.getName());
+        card.put("department", u.getDepartment());
+        card.put("introduce", u.getIntroduce());
+
+        int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
+        card.put("typeImageUrl", userService.resolveTypeImage(typeId));
         return card;
     }
 
@@ -269,7 +268,6 @@ public class MatchingService {
         List<Map<String,Object>> out = new ArrayList<>();
         for (ChatRoom r : rooms) {
             User peer = r.getUserA().getId().equals(me.getId()) ? r.getUserB() : r.getUserA();
-
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("peer", publicUserCard(peer));
             row.put("roomId", r.getId());
