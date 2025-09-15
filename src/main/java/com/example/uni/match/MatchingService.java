@@ -29,7 +29,9 @@ public class MatchingService {
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
 
-    /** 매칭 시작: 이성/다른 학과/본인 제외/기보낸신호 제외/기존채팅 없음 → 랜덤 3명 (크레딧 1 차감) */
+    /** 매칭 시작: 이성/다른 학과/본인 제외/기보낸신호 제외/기존채팅 없음 → 랜덤 3명
+     *  후보가 1명 이상일 때만 매칭 크레딧 1 차감
+     */
     @Transactional
     public MatchResultResponse requestMatch(UUID meId){
         User me = userRepository.findById(meId)
@@ -37,10 +39,9 @@ public class MatchingService {
 
         if (!me.isProfileComplete() || me.getGender() == null)
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
+
         if (me.getMatchCredits() < 1)
             throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
-
-        me.setMatchCredits(me.getMatchCredits() - 1);
 
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
 
@@ -65,7 +66,14 @@ public class MatchingService {
             candidates.add(publicUserCard(u));
         }
 
-        // ruleHit 제거
+        if (candidates.isEmpty()) {
+            return MatchResultResponse.builder()
+                    .candidates(candidates)
+                    .build();
+        }
+
+        me.setMatchCredits(me.getMatchCredits() - 1);
+
         return MatchResultResponse.builder()
                 .candidates(candidates)
                 .build();
@@ -93,7 +101,6 @@ public class MatchingService {
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
 
         if (s == null) {
-            // 최초 전송 시 신호 크레딧 확인/차감
             if (me.getSignalCredits() < 1)
                 throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
             me.setSignalCredits(me.getSignalCredits() - 1);
