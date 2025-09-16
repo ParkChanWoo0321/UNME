@@ -1,12 +1,9 @@
-// src/main/java/com/example/uni/match/Signal.java
 package com.example.uni.match;
 
 import com.example.uni.common.domain.BaseTimeEntity;
 import com.example.uni.user.domain.User;
 import jakarta.persistence.*;
 import lombok.*;
-
-import java.util.UUID;
 
 @Getter @Setter
 @Entity
@@ -21,8 +18,9 @@ import java.util.UUID;
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class Signal extends BaseTimeEntity {
 
-    @Id @GeneratedValue
-    private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // ← PK를 숫자(AUTO_INCREMENT)로
+    private Long id;
 
     @ManyToOne(optional = false) @JoinColumn(name="sender_id", nullable=false)
     private User sender;

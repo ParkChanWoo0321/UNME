@@ -20,7 +20,6 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")
@@ -121,7 +120,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> me(@AuthenticationPrincipal String userId) {
-        User u = userRepository.findById(UUID.fromString(userId))
+        User u = userRepository.findById(Long.valueOf(userId)) // ← Long
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         return ResponseEntity.ok(userService.toResponse(u));
     }
@@ -146,7 +145,7 @@ public class AuthController {
     @DeleteMapping("/kakao/unlink")
     public ResponseEntity<Void> unlink(@AuthenticationPrincipal String userId,
                                        HttpServletResponse response) {
-        oAuthService.unlinkUser(UUID.fromString(userId));
+        oAuthService.unlinkUser(Long.valueOf(userId)); // ← Long
         cookieUtil.clearRefreshCookie(response);
         return ResponseEntity.noContent().build();
     }

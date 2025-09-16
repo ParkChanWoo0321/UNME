@@ -40,7 +40,6 @@ public class UserService {
         };
     }
 
-    // ★ 추가: 두 번째 이미지 URL 해석
     private String imageUrlByType2(int typeId){
         String u1 = env.getProperty("app.type-image2.1", "");
         String u2 = env.getProperty("app.type-image2.2", "");
@@ -54,11 +53,10 @@ public class UserService {
         };
     }
 
-    // ★ 추가: 매칭 카드 등 외부에서 쓰기 위한 공개 메서드
     public String resolveTypeImage(int typeId)  { return imageUrlByType(typeId); }
     public String resolveTypeImage2(int typeId) { return imageUrlByType2(typeId); }
 
-    public User get(UUID id){
+    public User get(Long id){
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
     }
@@ -94,12 +92,12 @@ public class UserService {
 
     /** 기본정보 + 성별 + 성향테스트 (한 번에 완료) */
     @Transactional
-    public User completeProfile(UUID userId, UserOnboardingRequest req) {
+    public User completeProfile(Long userId, UserOnboardingRequest req) { // ← Long
         User u = get(userId);
 
         if (req.getName() != null) {
             userRepository.findByNameIgnoreCase(req.getName()).ifPresent(other -> {
-                if (!other.getId().equals(userId)) throw new ApiException(ErrorCode.CONFLICT);
+                if (!Objects.equals(other.getId(), userId)) throw new ApiException(ErrorCode.CONFLICT);
             });
             u.setName(req.getName());
         }
@@ -138,7 +136,6 @@ public class UserService {
 
         u.setProfileComplete(true);
 
-        // 기본값 보장: 매칭 3, 신호 3
         if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
         if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
 
@@ -146,14 +143,14 @@ public class UserService {
     }
 
     @Transactional
-    public User updateIntroduce(UUID userId, String introduce) {
+    public User updateIntroduce(Long userId, String introduce) { // ← Long
         User u = get(userId);
         u.setIntroduce(introduce);
         return userRepository.save(u);
     }
 
     @Transactional
-    public User updateInstagram(UUID userId, String raw) {
+    public User updateInstagram(Long userId, String raw) { // ← Long
         User u = get(userId);
         u.setInstagramUrl(toInstagramUrlOrNull(raw));
         return userRepository.save(u);
@@ -190,7 +187,7 @@ public class UserService {
         List<String> tags = parseTags(u.getStyleTagsJson());
 
         return UserProfileResponse.builder()
-                .userId(u.getId())
+                .userId(u.getId()) // ← Long
                 .kakaoId(u.getKakaoId())
                 .email(u.getEmail())
                 .nickname(u.getNickname())
@@ -223,7 +220,7 @@ public class UserService {
         List<String> tags = parseTags(u.getStyleTagsJson());
 
         return PeerDetailResponse.builder()
-                .userId(u.getId())
+                .userId(u.getId()) // ← Long
                 .name(u.getName())
                 .department(u.getDepartment())
                 .studentNo(u.getStudentNo())

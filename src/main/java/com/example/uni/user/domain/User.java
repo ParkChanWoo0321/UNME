@@ -3,9 +3,6 @@ package com.example.uni.user.domain;
 import com.example.uni.common.domain.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.UuidGenerator;
-
-import java.util.UUID;
 
 @Getter @Setter
 @Entity
@@ -25,8 +22,9 @@ import java.util.UUID;
 @Builder
 public class User extends BaseTimeEntity {
 
-    @Id @GeneratedValue @UuidGenerator
-    private UUID id;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)   // ← Long, AUTO_INCREMENT
+    private Long id;
 
     @Column(name = "kakao_id", nullable = false)
     private String kakaoId;

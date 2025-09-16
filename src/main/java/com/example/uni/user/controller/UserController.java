@@ -11,7 +11,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/users/me")
@@ -20,7 +19,7 @@ public class UserController {
 
     private final UserService userService;
 
-    private UUID uid(String principal){ return UUID.fromString(principal); }
+    private Long uid(String principal){ return Long.valueOf(principal); } // ← Long
 
     /** 닉네임 중복확인 */
     @GetMapping("/name/check")
@@ -39,14 +38,14 @@ public class UserController {
             @AuthenticationPrincipal String principal,
             @Valid @RequestBody UserOnboardingRequest req
     ){
-        User u = userService.completeProfile(uid(principal), req);
+        User u = userService.completeProfile(uid(principal), req); // ← Long
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
     /** 현재 프로필 조회 */
     @GetMapping("/profile")
     public ResponseEntity<UserProfileResponse> getProfile(@AuthenticationPrincipal String principal){
-        User u = userService.get(uid(principal));
+        User u = userService.get(uid(principal)); // ← Long
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
@@ -57,7 +56,7 @@ public class UserController {
             @RequestBody Map<String,String> body
     ){
         String introduce = body.get("introduce");
-        User u = userService.updateIntroduce(uid(principal), introduce);
+        User u = userService.updateIntroduce(uid(principal), introduce); // ← Long
         return ResponseEntity.ok(userService.toResponse(u));
     }
 
@@ -68,7 +67,7 @@ public class UserController {
             @RequestBody Map<String,String> body
     ){
         String raw = body.getOrDefault("instagram", body.get("instagramId"));
-        User u = userService.updateInstagram(uid(principal), raw);
+        User u = userService.updateInstagram(uid(principal), raw); // ← Long
         return ResponseEntity.ok(userService.toResponse(u));
     }
 }

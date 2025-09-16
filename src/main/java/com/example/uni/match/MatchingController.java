@@ -5,7 +5,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping
@@ -14,63 +13,65 @@ public class MatchingController {
 
     private final MatchingService matchingService;
 
+    private Long uid(String principal){ return Long.valueOf(principal); } // ← Long
+
     /** 매칭 시작 */
     @PostMapping("/match/start")
     public ResponseEntity<MatchResultResponse> start(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
-        return ResponseEntity.ok(matchingService.requestMatch(UUID.fromString(principal)));
+        return ResponseEntity.ok(matchingService.requestMatch(uid(principal))); // ← Long
     }
 
     /** 신호 보내기 */
     @PostMapping("/signals/{targetId}")
     public ResponseEntity<Map<String,Object>> sendSignal(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable UUID targetId){
-        return ResponseEntity.ok(matchingService.sendSignal(UUID.fromString(principal), targetId));
+            @PathVariable Long targetId){ // ← Long
+        return ResponseEntity.ok(matchingService.sendSignal(uid(principal), targetId));
     }
 
     /** 신호 취소(보낸 사람) */
     @DeleteMapping("/signals/{signalId}")
     public ResponseEntity<Map<String,Object>> cancel(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable UUID signalId){
-        return ResponseEntity.ok(matchingService.cancelSignal(UUID.fromString(principal), signalId));
+            @PathVariable Long signalId){ // ← Long
+        return ResponseEntity.ok(matchingService.cancelSignal(uid(principal), signalId));
     }
 
     /** 신호 거절(받은 사람) */
-    @PostMapping("/signals/{signalId}/decline")
+    @PostMapping("/signals/decline/{signalId}")
     public ResponseEntity<Map<String,Object>> decline(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable UUID signalId){
-        return ResponseEntity.ok(matchingService.declineSignal(UUID.fromString(principal), signalId));
+            @PathVariable Long signalId){ // ← Long
+        return ResponseEntity.ok(matchingService.declineSignal(uid(principal), signalId));
     }
 
     /** 신호 수락 */
-    @PostMapping("/signals/{signalId}/accept")
+    @PostMapping("/signals/accept/{signalId}")
     public ResponseEntity<Map<String,Object>> accept(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable UUID signalId){
-        return ResponseEntity.ok(matchingService.acceptSignal(UUID.fromString(principal), signalId));
+            @PathVariable Long signalId){ // ← Long
+        return ResponseEntity.ok(matchingService.acceptSignal(uid(principal), signalId));
     }
 
     /** 신호 보낸 목록 */
     @GetMapping("/signals/sent")
     public ResponseEntity<?> listSent(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
-        return ResponseEntity.ok(matchingService.listSentSignals(UUID.fromString(principal)));
+        return ResponseEntity.ok(matchingService.listSentSignals(uid(principal)));
     }
 
     /** 신호 받은 목록 */
     @GetMapping("/signals/received")
     public ResponseEntity<?> listReceived(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
-        return ResponseEntity.ok(matchingService.listReceivedSignals(UUID.fromString(principal)));
+        return ResponseEntity.ok(matchingService.listReceivedSignals(uid(principal)));
     }
 
     /** 매칭 성사 현황 */
     @GetMapping("/matches")
     public ResponseEntity<?> matches(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
-        return ResponseEntity.ok(matchingService.listMutualMatches(UUID.fromString(principal)));
+        return ResponseEntity.ok(matchingService.listMutualMatches(uid(principal)));
     }
 }

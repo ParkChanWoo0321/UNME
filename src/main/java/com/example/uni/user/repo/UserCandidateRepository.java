@@ -5,10 +5,9 @@ import com.example.uni.user.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
-import java.util.UUID;
 
-public interface UserCandidateRepository extends JpaRepository<User, UUID> {
+public interface UserCandidateRepository extends JpaRepository<User, Long> { // ← Long
     List<User> findByGenderAndDepartmentNotAndProfileCompleteTrueAndIdNot(
-            Gender gender, String department, UUID excludeId
+            Gender gender, String department, Long excludeId // ← Long
     );
 }

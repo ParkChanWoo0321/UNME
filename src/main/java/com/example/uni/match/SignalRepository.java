@@ -5,9 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
-public interface SignalRepository extends JpaRepository<Signal, UUID> {
+public interface SignalRepository extends JpaRepository<Signal, Long> { // ← Long
     Optional<Signal> findBySenderAndReceiver(User sender, User receiver);
     List<Signal> findAllBySenderOrderByCreatedAtDesc(User sender);
     List<Signal> findAllByReceiverOrderByCreatedAtDesc(User receiver);

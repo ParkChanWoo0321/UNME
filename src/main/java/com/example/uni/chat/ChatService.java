@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -20,7 +19,7 @@ public class ChatService {
     private final UserRepository userRepo;
 
     @Transactional
-    public ChatRoom createOrReuseRoom(UUID meId, UUID peerId){
+    public ChatRoom createOrReuseRoom(Long meId, Long peerId) { // ← Long
         User me   = userRepo.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
         User peer = userRepo.findById(peerId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
 
@@ -28,6 +27,7 @@ public class ChatService {
                 .or(() -> roomRepo.findByUserBAndUserA(me, peer));
         if (legacy.isPresent()) return legacy.get();
 
+        // ID 오름차순으로 A/B 고정
         User a = me.getId().compareTo(peer.getId()) <= 0 ? me : peer;
         User b = (a == me) ? peer : me;
 
@@ -38,13 +38,19 @@ public class ChatService {
             return roomRepo.saveAndFlush(
                     ChatRoom.builder()
                             .userA(a).userB(b)
-                            .anonymousNameA("별" + a.getId().toString().substring(0,4))
-                            .anonymousNameB("별" + b.getId().toString().substring(0,4))
+                            .anonymousNameA("별" + last4(a.getId()))
+                            .anonymousNameB("별" + last4(b.getId()))
                             .accepted(true)
                             .build()
             );
         } catch (DataIntegrityViolationException e) {
             return roomRepo.findByUserAAndUserB(a, b).orElseThrow(() -> e);
         }
+    }
+
+    // Long ID 안전하게 끝 4자리 생성 (0패딩)
+    private String last4(Long id) {
+        long v = (id == null ? 0 : Math.abs(id)) % 10000;
+        return String.format("%04d", v);
     }
 }

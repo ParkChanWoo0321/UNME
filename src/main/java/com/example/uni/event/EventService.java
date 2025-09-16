@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -19,7 +18,7 @@ public class EventService {
 
     /** 유효 코드 → 매칭/신호 크레딧을 모두 5로 설정 (1회성) */
     @Transactional
-    public Map<String, Object> redeem(UUID userId, String code){
+    public Map<String, Object> redeem(Long userId, String code) { // ← Long로 변경
         String normalized = code == null ? "" : code.trim().toUpperCase();
         if (normalized.isBlank()) throw new ApiException(ErrorCode.VALIDATION_ERROR);
 

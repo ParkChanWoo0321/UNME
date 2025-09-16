@@ -6,8 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
 @Service
 @RequiredArgsConstructor
 public class OAuthService {
@@ -33,10 +31,10 @@ public class OAuthService {
                         .matchCredits(0)
                         .build());
         user = userRepository.save(user);
-        UUID uid = user.getId();
 
-        String access = jwtProvider.generateAccess(uid.toString());
-        String refresh = jwtProvider.generateRefresh(uid.toString());
+        Long uid = user.getId(); // ← Long
+        String access  = jwtProvider.generateAccess(String.valueOf(uid));
+        String refresh = jwtProvider.generateRefresh(String.valueOf(uid));
         return new Tokens(access, refresh);
     }
 
@@ -57,10 +55,9 @@ public class OAuthService {
         return jwtProvider.generateRefresh(userId);
     }
 
-    public void unlinkUser(UUID userId) {
+    public void unlinkUser(Long userId) { // ← Long
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
-
         kakao.unlinkWithAdminKey(user.getKakaoId());
         userRepository.deleteById(userId);
     }

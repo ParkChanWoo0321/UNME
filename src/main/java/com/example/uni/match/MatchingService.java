@@ -27,13 +27,13 @@ public class MatchingService {
     private final SignalRepository signalRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatService chatService;
-    private final RealtimeNotifier notifier;       // 알림 유지
-    private final AfterCommitExecutor afterCommit; // 알림 커밋 후 전송
+    private final RealtimeNotifier notifier;
+    private final AfterCommitExecutor afterCommit;
     private final UserService userService;
 
     /** 매칭 시작 */
     @Transactional
-    public MatchResultResponse requestMatch(UUID meId){
+    public MatchResultResponse requestMatch(Long meId){ // ← Long
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
 
@@ -49,7 +49,7 @@ public class MatchingService {
                         opposite, me.getDepartment(), me.getId()
                 );
 
-        Set<UUID> alreadySignaled = new HashSet<>();
+        Set<Long> alreadySignaled = new HashSet<>(); // ← Long
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
 
         List<Map<String,Object>> candidates = new ArrayList<>();
@@ -62,8 +62,7 @@ public class MatchingService {
                     || chatRoomRepository.findByUserBAndUserA(u, me).isPresent();
             if (hasRoom) continue;
 
-            // ★ 변경: 후보 응답에는 typeId, typeImageUrl2 제외
-            candidates.add(matchCandidateCard(u));
+            candidates.add(matchCandidateCard(u)); // ← userId 포함
         }
 
         if (candidates.isEmpty()) {
@@ -71,14 +70,13 @@ public class MatchingService {
         }
 
         me.setMatchCredits(me.getMatchCredits() - 1);
-
         return MatchResultResponse.builder().candidates(candidates).build();
     }
 
     /** 신호 보내기 */
     @Transactional
-    public Map<String,Object> sendSignal(UUID meId, UUID targetId){
-        if (meId.equals(targetId)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
+    public Map<String,Object> sendSignal(Long meId, Long targetId){ // ← Long
+        if (Objects.equals(meId, targetId)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
 
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
@@ -120,15 +118,15 @@ public class MatchingService {
             }
         }
 
-        return Map.of("signalId", s.getId(), "status", s.getStatus().name());
+        return Map.of("signalId", s.getId(), "status", s.getStatus().name()); // ← Long 반환
     }
 
     /** 신호 취소(보낸 사람) */
     @Transactional
-    public Map<String,Object> cancelSignal(UUID meId, UUID signalId){
+    public Map<String,Object> cancelSignal(Long meId, Long signalId){ // ← Long
         Signal s = signalRepository.findById(signalId)
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
-        if (!s.getSender().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
+        if (!Objects.equals(s.getSender().getId(), meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
         s.setStatus(Signal.Status.CANCELED);
@@ -143,10 +141,10 @@ public class MatchingService {
 
     /** 신호 거절(받은 사람) */
     @Transactional
-    public Map<String,Object> declineSignal(UUID meId, UUID signalId){
+    public Map<String,Object> declineSignal(Long meId, Long signalId){ // ← Long
         Signal s = signalRepository.findById(signalId)
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
-        if (!s.getReceiver().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
+        if (!Objects.equals(s.getReceiver().getId(), meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
         s.setStatus(Signal.Status.DECLINED);
@@ -161,13 +159,12 @@ public class MatchingService {
 
     /** 신호 수락(받은 사람) — 방 생성/재사용 + 성사 알림 + 신호 삭제 */
     @Transactional
-    public Map<String,Object> acceptSignal(UUID meId, UUID signalId){
+    public Map<String,Object> acceptSignal(Long meId, Long signalId){ // ← Long
         Signal s = signalRepository.findById(signalId)
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
-        if (!s.getReceiver().getId().equals(meId)) throw new ApiException(ErrorCode.FORBIDDEN);
+        if (!Objects.equals(s.getReceiver().getId(), meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
-        // 일관성 유지용 MUTUAL 저장 (곧 삭제)
         s.setStatus(Signal.Status.MUTUAL);
         signalRepository.save(s);
 
@@ -189,7 +186,6 @@ public class MatchingService {
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
         });
 
-        // 매칭 성사 → 양방향 신호 삭제
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
@@ -197,7 +193,7 @@ public class MatchingService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String,Object>> listSentSignals(UUID meId){
+    public List<Map<String,Object>> listSentSignals(Long meId){ // ← Long
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         List<Signal> list = signalRepository.findAllBySenderOrderByCreatedAtDesc(me);
@@ -205,7 +201,7 @@ public class MatchingService {
         for (Signal s : list) {
             User r = s.getReceiver();
             Map<String,Object> row = new LinkedHashMap<>();
-            row.put("signalId", s.getId());
+            row.put("signalId", s.getId()); // ← Long
             row.put("toUser", publicUserCard(r));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
@@ -215,7 +211,7 @@ public class MatchingService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String,Object>> listReceivedSignals(UUID meId){
+    public List<Map<String,Object>> listReceivedSignals(Long meId){ // ← Long
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         List<Signal> list = signalRepository.findAllByReceiverOrderByCreatedAtDesc(me);
@@ -223,7 +219,7 @@ public class MatchingService {
         for (Signal s : list) {
             User from = s.getSender();
             Map<String,Object> row = new LinkedHashMap<>();
-            row.put("signalId", s.getId());
+            row.put("signalId", s.getId()); // ← Long
             row.put("fromUser", publicUserCard(from));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
@@ -232,9 +228,10 @@ public class MatchingService {
         return out;
     }
 
-    /** 다른 API에서 쓰는 기본 카드 (typeId, typeImageUrl2 포함) */
+    /** 다른 API에서 쓰는 기본 카드 */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
+        card.put("userId", u.getId()); // ← 식별자 포함(운영 편의)
         card.put("name", u.getName());
         card.put("department", u.getDepartment());
         card.put("introduce", u.getIntroduce());
@@ -249,6 +246,7 @@ public class MatchingService {
     /** 매칭 후보 전용 카드 (typeId, typeImageUrl2 제외) */
     private Map<String,Object> matchCandidateCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
+        card.put("userId", u.getId()); // ← 후보 목록에 userId 포함
         card.put("name", u.getName());
         card.put("department", u.getDepartment());
         card.put("introduce", u.getIntroduce());
@@ -259,7 +257,7 @@ public class MatchingService {
     }
 
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> listMutualMatches(UUID meId) {
+    public List<Map<String, Object>> listMutualMatches(Long meId) { // ← Long
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
 

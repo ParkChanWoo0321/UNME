@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -17,10 +15,11 @@ public class RealtimeNotifier {
 
     private final SimpMessagingTemplate ws;
 
-    /** 브라우저는 /user/queue/... 로만 구독. 내부에선 convertAndSendToUser로 단일 전송 */
-    public void toUser(UUID userId, String dest, Object payload) {
+    /** /user/queue/... 로만 구독. 내부에선 convertAndSendToUser로 단일 전송 */
+    public void toUser(Long userId, String dest, Object payload) { // ← Long로 변경
         String pure = dest.startsWith("/user/") ? dest.substring(5) : dest;
-        log.info("[WS] SEND user={} dest={}", userId, pure);
-        ws.convertAndSendToUser(userId.toString(), pure, payload);
+        String key = String.valueOf(userId);
+        log.info("[WS] SEND user={} dest={}", key, pure);
+        ws.convertAndSendToUser(key, pure, payload);
     }
 }

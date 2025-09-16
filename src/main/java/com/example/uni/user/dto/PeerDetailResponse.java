@@ -5,12 +5,11 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.util.List;
-import java.util.UUID;
 
 @Getter
 @Builder
 public class PeerDetailResponse {
-    private UUID userId;
+    private Long userId;          // ← Long
     private String name;
     private String department;
     private String studentNo;

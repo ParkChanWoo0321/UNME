@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
@@ -17,9 +15,9 @@ public class PeerDetailController {
     private final UserService userService;
 
     /** 상대방 상세보기 (introduce 포함, 로그인 필요) */
-    @GetMapping("/{userId}/detail")
-    public ResponseEntity<PeerDetailResponse> peerDetail(@PathVariable UUID userId) {
-        User u = userService.get(userId);
+    @GetMapping("/{userId}")
+    public ResponseEntity<PeerDetailResponse> peerDetail(@PathVariable Long userId) { // ← Long
+        User u = userService.get(userId); // ← Long 시그니처
         return ResponseEntity.ok(userService.toPeerResponse(u));
     }
 }

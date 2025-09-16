@@ -6,7 +6,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/event")
@@ -22,7 +21,7 @@ public class EventController {
             @Valid @RequestBody RedeemRequest body
     ){
         return ResponseEntity.ok(
-                eventService.redeem(UUID.fromString(principal), body.getCode())
+                eventService.redeem(Long.valueOf(principal), body.getCode()) // ← Long로 변경
         );
     }
 }
