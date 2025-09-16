@@ -16,9 +16,9 @@ public class EventService {
     private final VerifyCodeRepository codeRepo;
     private final UserRepository userRepo;
 
-    /** 유효 코드 → 매칭/신호 크레딧을 모두 5로 설정 (1회성) */
+    /** 유효 코드 → 매칭/신호 크레딧을 각각 +5 증가 후 현재 수량만 응답 */
     @Transactional
-    public Map<String, Object> redeem(Long userId, String code) { // ← Long로 변경
+    public Map<String, Object> redeem(Long userId, String code) {
         String normalized = code == null ? "" : code.trim().toUpperCase();
         if (normalized.isBlank()) throw new ApiException(ErrorCode.VALIDATION_ERROR);
 
@@ -26,8 +26,21 @@ public class EventService {
         if (changed == 0) throw new ApiException(ErrorCode.COUPON_INVALID_OR_EXPIRED);
 
         var user = userRepo.findById(userId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
-        user.setMatchCredits(5);
-        user.setSignalCredits(5);
-        return Map.of("ok", true, "matchCredits", user.getMatchCredits(), "signalCredits", user.getSignalCredits());
+
+        final int INC_MATCH = 5;
+        final int INC_SIGNAL = 5;
+
+        int newMatch  = Math.max(0, user.getMatchCredits())  + INC_MATCH;
+        int newSignal = Math.max(0, user.getSignalCredits()) + INC_SIGNAL;
+
+        user.setMatchCredits(newMatch);
+        user.setSignalCredits(newSignal);
+        userRepo.save(user); // 명시적으로 저장
+
+        // ✅ 응답은 딱 두 개만
+        return Map.of(
+                "matchCredits",  user.getMatchCredits(),
+                "signalCredits", user.getSignalCredits()
+        );
     }
 }
