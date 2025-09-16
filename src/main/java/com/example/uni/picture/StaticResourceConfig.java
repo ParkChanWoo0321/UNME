@@ -1,3 +1,4 @@
+// com/example/uni/picture/StaticResourceConfig.java
 package com.example.uni.picture;
 
 import org.springframework.beans.factory.annotation.Value;

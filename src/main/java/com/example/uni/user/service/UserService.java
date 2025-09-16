@@ -1,3 +1,4 @@
+// com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
 import com.example.uni.common.exception.ApiException;
@@ -53,8 +54,22 @@ public class UserService {
         };
     }
 
+    private String imageUrlByType3(int typeId){
+        String u1 = env.getProperty("app.type-image3.1", "");
+        String u2 = env.getProperty("app.type-image3.2", "");
+        String u3 = env.getProperty("app.type-image3.3", "");
+        String u4 = env.getProperty("app.type-image3.4", "");
+        return switch (typeId) {
+            case 1 -> u1;
+            case 2 -> u2;
+            case 3 -> u3;
+            default -> u4;
+        };
+    }
+
     public String resolveTypeImage(int typeId)  { return imageUrlByType(typeId); }
     public String resolveTypeImage2(int typeId) { return imageUrlByType2(typeId); }
+    public String resolveTypeImage3(int typeId) { return imageUrlByType3(typeId); }
 
     public User get(Long id){
         return userRepository.findById(id)
@@ -92,7 +107,7 @@ public class UserService {
 
     /** 기본정보 + 성별 + 성향테스트 (한 번에 완료) */
     @Transactional
-    public User completeProfile(Long userId, UserOnboardingRequest req) { // ← Long
+    public User completeProfile(Long userId, UserOnboardingRequest req) {
         User u = get(userId);
 
         if (req.getName() != null) {
@@ -143,14 +158,14 @@ public class UserService {
     }
 
     @Transactional
-    public User updateIntroduce(Long userId, String introduce) { // ← Long
+    public User updateIntroduce(Long userId, String introduce) {
         User u = get(userId);
         u.setIntroduce(introduce);
         return userRepository.save(u);
     }
 
     @Transactional
-    public User updateInstagram(Long userId, String raw) { // ← Long
+    public User updateInstagram(Long userId, String raw) {
         User u = get(userId);
         u.setInstagramUrl(toInstagramUrlOrNull(raw));
         return userRepository.save(u);
@@ -187,7 +202,7 @@ public class UserService {
         List<String> tags = parseTags(u.getStyleTagsJson());
 
         return UserProfileResponse.builder()
-                .userId(u.getId()) // ← Long
+                .userId(u.getId())
                 .kakaoId(u.getKakaoId())
                 .email(u.getEmail())
                 .nickname(u.getNickname())
@@ -220,7 +235,7 @@ public class UserService {
         List<String> tags = parseTags(u.getStyleTagsJson());
 
         return PeerDetailResponse.builder()
-                .userId(u.getId()) // ← Long
+                .userId(u.getId())
                 .name(u.getName())
                 .department(u.getDepartment())
                 .studentNo(u.getStudentNo())

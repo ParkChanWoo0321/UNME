@@ -1,3 +1,4 @@
+// com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
 import com.example.uni.chat.ChatRoom;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -109,6 +111,7 @@ public class MatchingService {
             if (s.getStatus() == Signal.Status.MUTUAL) throw new ApiException(ErrorCode.CONFLICT);
             if (s.getStatus() != Signal.Status.SENT) {
                 s.setStatus(Signal.Status.SENT);
+                s.setReceiverDeletedAt(null); // 재발송 시 수신자 숨김 해제
                 signalRepository.save(s);
 
                 afterCommit.run(() -> notifier.toUser(
@@ -130,6 +133,7 @@ public class MatchingService {
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
         s.setStatus(Signal.Status.DECLINED);
+        s.setReceiverDeletedAt(LocalDateTime.now()); // 수신자 목록에서 숨김(삭제 효과)
         signalRepository.save(s);
 
         afterCommit.run(() -> notifier.toUser(
@@ -172,7 +176,6 @@ public class MatchingService {
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
-        // 응답 키 순서 고정 + UTC Z 포맷
         String createdAt = null;
         if (room.getCreatedAt() != null) {
             createdAt = room.getCreatedAt()
@@ -189,7 +192,7 @@ public class MatchingService {
         return resp;
     }
 
-    // 신호 목록용 간소 카드
+    // 신호 목록용 간소 카드(수신목록 전용) — 항상 typeImageUrl2
     private Map<String, Object> signalUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
@@ -210,26 +213,45 @@ public class MatchingService {
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
             User r = s.getReceiver();
+            int typeId = (r.getTypeId() != null) ? r.getTypeId() : 4;
+
+            // 상태별 이미지 키/메시지
+            Map<String,Object> toCard = new LinkedHashMap<>();
+            toCard.put("userId", r.getId());
+            toCard.put("name", r.getName());
+            toCard.put("department", r.getDepartment());
+            String message;
+            if (s.getStatus() == Signal.Status.DECLINED) {
+                toCard.put("typeImageUrl3", userService.resolveTypeImage3(typeId)); // <- 여기서 3로 전환
+                message = "거절하셨습니다.";
+            } else {
+                toCard.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+                message = "성공적으로 신호를 보냈어요!";
+            }
+
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("toUser", signalUserCard(r));
+            row.put("toUser", toCard);
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
-            row.put("message", "성공적으로 신호를 보냈어요!");
+            row.put("message", message);
             out.add(row);
         }
         return out;
     }
 
-    /** 받은 신호 목록 */
+    /** 받은 신호 목록 (수신자 숨김 처리 반영) */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listReceivedSignals(Long meId){
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
-        List<Signal> list = signalRepository.findAllByReceiverOrderByCreatedAtDesc(me);
+
+        // 수신자 입장에서 삭제된 항목은 제외
+        List<Signal> list = signalRepository.findAllByReceiverAndReceiverDeletedAtIsNullOrderByCreatedAtDesc(me);
 
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
+            if (s.getStatus() != Signal.Status.SENT) continue; // 받은 목록엔 대기중만 노출
             User from = s.getSender();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());

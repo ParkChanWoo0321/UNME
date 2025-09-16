@@ -1,9 +1,12 @@
+// com/example/uni/match/Signal.java
 package com.example.uni.match;
 
 import com.example.uni.common.domain.BaseTimeEntity;
 import com.example.uni.user.domain.User;
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.time.LocalDateTime;
 
 @Getter @Setter
 @Entity
@@ -19,7 +22,7 @@ import lombok.*;
 public class Signal extends BaseTimeEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // ← PK를 숫자(AUTO_INCREMENT)로
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(optional = false) @JoinColumn(name="sender_id", nullable=false)
@@ -33,6 +36,10 @@ public class Signal extends BaseTimeEntity {
     private Status status;
 
     public enum Status { SENT, MUTUAL, CANCELED, DECLINED }
+
+    /** 수신자 받은목록에서만 숨김(삭제 효과) */
+    @Column(name = "receiver_deleted_at")
+    private LocalDateTime receiverDeletedAt;
 
     @Version
     private Long version;

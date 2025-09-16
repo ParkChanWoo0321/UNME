@@ -1,3 +1,4 @@
+// com/example/uni/picture/TypeImageUploadController.java
 package com.example.uni.picture;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,13 +31,14 @@ public class TypeImageUploadController {
                          @RequestPart("file") MultipartFile file,
                          HttpServletRequest req) throws IOException {
 
-        // 허용 타입: 1,2,3,4,2.1~2.4
+        // 허용 타입: 1,2,3,4, 2.1~2.4, 3.1~3.4
         List<String> allowedTypes = List.of(
                 "1", "2", "3", "4",
-                "2.1", "2.2", "2.3", "2.4"
+                "2.1", "2.2", "2.3", "2.4",
+                "3.1", "3.2", "3.3", "3.4"
         );
         if (!allowedTypes.contains(type)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4 또는 2.1~2.4만 허용");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4, 2.1~2.4, 3.1~3.4만 허용");
         }
 
         if (file == null || file.isEmpty()) {
@@ -51,22 +53,32 @@ public class TypeImageUploadController {
         if (!StringUtils.hasText(ext)) ext = "png";
         ext = ext.toLowerCase();
 
-        String filename = "type" + type + "." + ext; // ex) type1.png, type2.1.png
+        String filename = "type" + type + "." + ext; // ex) type3.1.png
         Path target = dir.resolve(filename);
         file.transferTo(target.toFile());
 
-        // 공개 URL 구성
+        // 공개 URL
         String scheme = req.getScheme(); // http/https
         String host = req.getServerName();
         int port = req.getServerPort();
         String base = scheme + "://" + host + ((port == 80 || port == 443) ? "" : (":" + port));
         String url = base + (contextPath == null ? "" : contextPath) + "/files/profile-types/" + filename;
 
+        // 프로퍼티 키 접두사 분기
+        String propertyKey;
+        if (type.startsWith("2.")) {
+            propertyKey = "app.type-image2." + type.substring(2);
+        } else if (type.startsWith("3.")) {
+            propertyKey = "app.type-image3." + type.substring(2);
+        } else {
+            propertyKey = "app.type-image." + type;
+        }
+
         return java.util.Map.of(
                 "type", type,
                 "saved", target.toAbsolutePath().toString(),
                 "url", url,
-                "propertyKey", "app.type-image." + type,
+                "propertyKey", propertyKey,
                 "propertyValue", url,
                 "note", "application.properties에 위 propertyValue를 붙여넣어 사용"
         );
