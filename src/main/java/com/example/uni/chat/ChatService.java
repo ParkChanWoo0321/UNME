@@ -38,8 +38,6 @@ public class ChatService {
             return roomRepo.saveAndFlush(
                     ChatRoom.builder()
                             .userA(a).userB(b)
-                            .anonymousNameA("별" + last4(a.getId()))
-                            .anonymousNameB("별" + last4(b.getId()))
                             .accepted(true)
                             .build()
             );

@@ -20,7 +20,5 @@ public class ChatRoom extends BaseTimeEntity {
     private User userA;
     @ManyToOne(optional=false) @JoinColumn(name="user_b_id", nullable=false)
     private User userB;
-    private String anonymousNameA;
-    private String anonymousNameB;
     private boolean accepted;
 }
