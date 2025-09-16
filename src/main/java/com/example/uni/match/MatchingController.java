@@ -13,36 +13,28 @@ public class MatchingController {
 
     private final MatchingService matchingService;
 
-    private Long uid(String principal){ return Long.valueOf(principal); } // ← Long
+    private Long uid(String principal){ return Long.valueOf(principal); }
 
     /** 매칭 시작 */
     @PostMapping("/match/start")
     public ResponseEntity<MatchResultResponse> start(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
-        return ResponseEntity.ok(matchingService.requestMatch(uid(principal))); // ← Long
+        return ResponseEntity.ok(matchingService.requestMatch(uid(principal)));
     }
 
     /** 신호 보내기 */
     @PostMapping("/signals/{targetId}")
     public ResponseEntity<Map<String,Object>> sendSignal(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable Long targetId){ // ← Long
+            @PathVariable Long targetId){
         return ResponseEntity.ok(matchingService.sendSignal(uid(principal), targetId));
-    }
-
-    /** 신호 취소(보낸 사람) */
-    @DeleteMapping("/signals/{signalId}")
-    public ResponseEntity<Map<String,Object>> cancel(
-            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable Long signalId){ // ← Long
-        return ResponseEntity.ok(matchingService.cancelSignal(uid(principal), signalId));
     }
 
     /** 신호 거절(받은 사람) */
     @PostMapping("/signals/decline/{signalId}")
     public ResponseEntity<Map<String,Object>> decline(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable Long signalId){ // ← Long
+            @PathVariable Long signalId){
         return ResponseEntity.ok(matchingService.declineSignal(uid(principal), signalId));
     }
 
@@ -50,7 +42,7 @@ public class MatchingController {
     @PostMapping("/signals/accept/{signalId}")
     public ResponseEntity<Map<String,Object>> accept(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @PathVariable Long signalId){ // ← Long
+            @PathVariable Long signalId){
         return ResponseEntity.ok(matchingService.acceptSignal(uid(principal), signalId));
     }
 

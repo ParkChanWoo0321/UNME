@@ -121,24 +121,6 @@ public class MatchingService {
         return Map.of("signalId", s.getId(), "status", s.getStatus().name());
     }
 
-    /** 신호 취소(보낸 사람) */
-    @Transactional
-    public Map<String,Object> cancelSignal(Long meId, Long signalId){
-        Signal s = signalRepository.findById(signalId)
-                .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
-        if (!Objects.equals(s.getSender().getId(), meId)) throw new ApiException(ErrorCode.FORBIDDEN);
-        if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
-
-        s.setStatus(Signal.Status.CANCELED);
-        signalRepository.save(s);
-
-        afterCommit.run(() -> notifier.toUser(
-                s.getReceiver().getId(), RealtimeNotifier.Q_SIGNAL,
-                Map.of("type","CANCELED","fromUser", publicUserCard(s.getSender()))
-        ));
-        return Map.of("ok", true);
-    }
-
     /** 신호 거절(받은 사람) */
     @Transactional
     public Map<String,Object> declineSignal(Long meId, Long signalId){
@@ -190,46 +172,71 @@ public class MatchingService {
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
-        // ★ 응답 스키마 변경: roomId(String), participants(Long[]), createdAt(ISO 문자열)
-        String createdAt = (room.getCreatedAt() != null) ? room.getCreatedAt().toString() : null;
-        return Map.of(
-                "roomId", room.getId().toString(),
-                "participants", List.of(s.getSender().getId(), s.getReceiver().getId()),
-                "createdAt", createdAt
-        );
+        // 응답 키 순서 고정 + UTC Z 포맷
+        String createdAt = null;
+        if (room.getCreatedAt() != null) {
+            createdAt = room.getCreatedAt()
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .withZoneSameInstant(java.time.ZoneOffset.UTC)
+                    .toInstant()
+                    .toString();
+        }
+
+        Map<String,Object> resp = new LinkedHashMap<>();
+        resp.put("roomId", room.getId().toString());
+        resp.put("participants", List.of(s.getSender().getId(), s.getReceiver().getId()));
+        resp.put("createdAt", createdAt);
+        return resp;
     }
 
+    // 신호 목록용 간소 카드
+    private Map<String, Object> signalUserCard(User u) {
+        Map<String,Object> card = new LinkedHashMap<>();
+        card.put("userId", u.getId());
+        card.put("name", u.getName());
+        card.put("department", u.getDepartment());
+        int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
+        card.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+        return card;
+    }
+
+    /** 보낸 신호 목록 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listSentSignals(Long meId){
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         List<Signal> list = signalRepository.findAllBySenderOrderByCreatedAtDesc(me);
+
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
             User r = s.getReceiver();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("toUser", publicUserCard(r));
+            row.put("toUser", signalUserCard(r));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
+            row.put("message", "성공적으로 신호를 보냈어요!");
             out.add(row);
         }
         return out;
     }
 
+    /** 받은 신호 목록 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listReceivedSignals(Long meId){
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         List<Signal> list = signalRepository.findAllByReceiverOrderByCreatedAtDesc(me);
+
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
             User from = s.getSender();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("fromUser", publicUserCard(from));
+            row.put("fromUser", signalUserCard(from));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
+            row.put("message", "새로운 신호가 있어요!");
             out.add(row);
         }
         return out;
