@@ -1,3 +1,4 @@
+// com/example/uni/auth/AuthController.java
 package com.example.uni.auth;
 
 import com.example.uni.common.exception.ApiException;
@@ -9,7 +10,6 @@ import com.example.uni.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,7 +29,6 @@ public class AuthController {
     private final UserRepository userRepository;
     private final OAuthService oAuthService;
     private final CookieUtil cookieUtil;
-    private final ObjectProvider<FirebaseTokenService> firebaseTokenService;
     private final UserService userService;
 
     @Value("${kakao.client-id}")    private String kakaoClientId;
@@ -120,32 +119,15 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> me(@AuthenticationPrincipal String userId) {
-        User u = userRepository.findById(Long.valueOf(userId)) // ← Long
+        User u = userRepository.findById(Long.valueOf(userId))
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         return ResponseEntity.ok(userService.toResponse(u));
-    }
-
-    @GetMapping("/firebase/token")
-    public ResponseEntity<?> firebaseToken(@AuthenticationPrincipal String userId) {
-        FirebaseTokenService svc = firebaseTokenService.getIfAvailable();
-        if (svc == null) {
-            return ResponseEntity.status(503).body(Map.of(
-                    "error", "FIREBASE_DISABLED",
-                    "message", "Firebase is disabled on server"
-            ));
-        }
-        try {
-            String customToken = svc.createCustomToken(userId);
-            return ResponseEntity.ok(Map.of("customToken", customToken));
-        } catch (Exception e) {
-            throw new ApiException(ErrorCode.INTERNAL_SERVER_ERROR);
-        }
     }
 
     @DeleteMapping("/kakao/unlink")
     public ResponseEntity<Void> unlink(@AuthenticationPrincipal String userId,
                                        HttpServletResponse response) {
-        oAuthService.unlinkUser(Long.valueOf(userId)); // ← Long
+        oAuthService.unlinkUser(Long.valueOf(userId));
         cookieUtil.clearRefreshCookie(response);
         return ResponseEntity.noContent().build();
     }
