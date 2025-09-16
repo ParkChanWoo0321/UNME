@@ -1,3 +1,4 @@
+// com/example/uni/auth/OAuthService.java
 package com.example.uni.auth;
 
 import com.example.uni.user.domain.User;
@@ -5,6 +6,8 @@ import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime; // ← 추가
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +35,7 @@ public class OAuthService {
                         .build());
         user = userRepository.save(user);
 
-        Long uid = user.getId(); // ← Long
+        Long uid = user.getId();
         String access  = jwtProvider.generateAccess(String.valueOf(uid));
         String refresh = jwtProvider.generateRefresh(String.valueOf(uid));
         return new Tokens(access, refresh);
@@ -55,11 +58,13 @@ public class OAuthService {
         return jwtProvider.generateRefresh(userId);
     }
 
-    public void unlinkUser(Long userId) { // ← Long
+    /** 카카오 계정 연결 해제 + 로컬 소프트탈퇴(하드삭제 금지) */
+    public void unlinkUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
-        kakao.unlinkWithAdminKey(user.getKakaoId());
-        userRepository.deleteById(userId);
+        kakao.unlinkWithAdminKey(user.getKakaoId());   // 외부 언링크
+        user.setDeactivatedAt(LocalDateTime.now());    // 소프트탈퇴
+        userRepository.save(user);                     // 하드삭제 금지
     }
 
     public record Tokens(String access, String refresh) {}

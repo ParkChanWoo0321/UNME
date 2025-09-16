@@ -14,6 +14,7 @@ import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value; // ← 추가
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,12 +34,18 @@ public class MatchingService {
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
 
+    @Value("${app.unknown-user.name:알 수 없는 유저}")
+    private String unknownUserName;         // ← 추가
+    @Value("${app.unknown-user.image:}")
+    private String unknownUserImage;        // ← 추가
+
     /** 매칭 시작 */
     @Transactional
     public MatchResultResponse requestMatch(Long meId){
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
 
+        if (me.getDeactivatedAt()!=null) throw new ApiException(ErrorCode.FORBIDDEN); // ← 탈퇴자 차단
         if (!me.isProfileComplete() || me.getGender() == null)
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (me.getMatchCredits() < 1)
@@ -46,8 +53,8 @@ public class MatchingService {
 
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
 
-        List<User> pool = userCandidateRepository
-                .findByGenderAndDepartmentNotAndProfileCompleteTrueAndIdNot(
+        var pool = userCandidateRepository
+                .findByGenderAndDepartmentNotAndProfileCompleteTrueAndDeactivatedAtIsNullAndIdNot( // ← 변경
                         opposite, me.getDepartment(), me.getId()
                 );
 
@@ -84,6 +91,10 @@ public class MatchingService {
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         User target = userRepository.findById(targetId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+
+        // 탈퇴자 차단
+        if (me.getDeactivatedAt()!=null || target.getDeactivatedAt()!=null)
+            throw new ApiException(ErrorCode.FORBIDDEN); // ← 추가
 
         if (Objects.equals(me.getDepartment(), target.getDepartment()))
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
@@ -133,7 +144,7 @@ public class MatchingService {
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
         s.setStatus(Signal.Status.DECLINED);
-        s.setReceiverDeletedAt(LocalDateTime.now()); // 수신자 목록에서 숨김(삭제 효과)
+        s.setReceiverDeletedAt(LocalDateTime.now()); // 수신자 목록에서 삭제 효과
         signalRepository.save(s);
 
         afterCommit.run(() -> notifier.toUser(
@@ -150,6 +161,10 @@ public class MatchingService {
                 .orElseThrow(() -> new ApiException(ErrorCode.SIGNAL_NOT_FOUND));
         if (!Objects.equals(s.getReceiver().getId(), meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
+
+        // 탈퇴자 차단
+        if (s.getSender().getDeactivatedAt()!=null || s.getReceiver().getDeactivatedAt()!=null)
+            throw new ApiException(ErrorCode.FORBIDDEN); // ← 추가
 
         s.setStatus(Signal.Status.MUTUAL);
         signalRepository.save(s);
@@ -192,18 +207,21 @@ public class MatchingService {
         return resp;
     }
 
-    // 신호 목록용 간소 카드(수신목록 전용) — 항상 typeImageUrl2
+    // 받은목록 카드: 탈퇴자면 마스킹
     private Map<String, Object> signalUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
-        card.put("name", u.getName());
-        card.put("department", u.getDepartment());
+
+        boolean deactivated = (u.getDeactivatedAt()!=null);
+        card.put("name",       deactivated ? unknownUserName  : u.getName());
+        card.put("department", deactivated ? null             : u.getDepartment());
+
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
-        card.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+        card.put("typeImageUrl2", deactivated ? unknownUserImage : userService.resolveTypeImage2(typeId));
         return card;
     }
 
-    /** 보낸 신호 목록 */
+    /** 보낸 신호 목록 (DECLINED → typeImageUrl3 + "거절하셨습니다.") */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listSentSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -213,19 +231,20 @@ public class MatchingService {
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
             User r = s.getReceiver();
+            boolean deactivated = (r.getDeactivatedAt()!=null);
             int typeId = (r.getTypeId() != null) ? r.getTypeId() : 4;
 
-            // 상태별 이미지 키/메시지
             Map<String,Object> toCard = new LinkedHashMap<>();
             toCard.put("userId", r.getId());
-            toCard.put("name", r.getName());
-            toCard.put("department", r.getDepartment());
+            toCard.put("name", deactivated ? unknownUserName : r.getName());
+            toCard.put("department", deactivated ? null : r.getDepartment());
+
             String message;
             if (s.getStatus() == Signal.Status.DECLINED) {
-                toCard.put("typeImageUrl3", userService.resolveTypeImage3(typeId)); // <- 여기서 3로 전환
+                toCard.put("typeImageUrl3", deactivated ? unknownUserImage : userService.resolveTypeImage3(typeId));
                 message = "거절하셨습니다.";
             } else {
-                toCard.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+                toCard.put("typeImageUrl2", deactivated ? unknownUserImage : userService.resolveTypeImage2(typeId));
                 message = "성공적으로 신호를 보냈어요!";
             }
 
@@ -246,16 +265,15 @@ public class MatchingService {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
 
-        // 수신자 입장에서 삭제된 항목은 제외
         List<Signal> list = signalRepository.findAllByReceiverAndReceiverDeletedAtIsNullOrderByCreatedAtDesc(me);
 
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
-            if (s.getStatus() != Signal.Status.SENT) continue; // 받은 목록엔 대기중만 노출
+            if (s.getStatus() != Signal.Status.SENT) continue; // 대기중만
             User from = s.getSender();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("fromUser", signalUserCard(from));
+            row.put("fromUser", signalUserCard(from)); // ← 마스킹 반영됨
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
             row.put("message", "새로운 신호가 있어요!");
@@ -264,22 +282,24 @@ public class MatchingService {
         return out;
     }
 
-    /** 다른 API에서 쓰는 기본 카드 */
+    /** 다른 API에서 쓰는 기본 카드(채팅/매칭 등) — 탈퇴자 마스킹 */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
+        boolean deactivated = (u.getDeactivatedAt()!=null);
+
         card.put("userId", u.getId());
-        card.put("name", u.getName());
-        card.put("department", u.getDepartment());
-        card.put("introduce", u.getIntroduce());
+        card.put("name", deactivated ? unknownUserName : u.getName());
+        card.put("department", deactivated ? null : u.getDepartment());
+        card.put("introduce", deactivated ? null : u.getIntroduce());
 
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         card.put("typeId", typeId);
-        card.put("typeImageUrl",  userService.resolveTypeImage(typeId));
-        card.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
+        card.put("typeImageUrl",  deactivated ? unknownUserImage : userService.resolveTypeImage(typeId));
+        card.put("typeImageUrl2", deactivated ? unknownUserImage : userService.resolveTypeImage2(typeId));
         return card;
     }
 
-    /** 매칭 후보 전용 카드 (typeId, typeImageUrl2 제외) */
+    /** 매칭 후보 전용 카드 */
     private Map<String,Object> matchCandidateCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
@@ -303,7 +323,7 @@ public class MatchingService {
         for (ChatRoom r : rooms) {
             User peer = r.getUserA().getId().equals(me.getId()) ? r.getUserB() : r.getUserA();
             Map<String,Object> row = new LinkedHashMap<>();
-            row.put("peer", publicUserCard(peer));
+            row.put("peer", publicUserCard(peer)); // ← 마스킹 반영됨
             row.put("roomId", r.getId());
             row.put("matchedAt", r.getCreatedAt());
             out.add(row);
