@@ -11,7 +11,6 @@ import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
-import com.example.uni.auth.FirebaseBridgeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,7 +30,6 @@ public class MatchingService {
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
-    private final FirebaseBridgeService firebaseBridge;
 
     @Value("${app.unknown-user.name:알 수 없는 유저}")
     private String unknownUserName;
@@ -110,10 +108,17 @@ public class MatchingService {
             s = signalRepository.save(Signal.builder()
                     .sender(me).receiver(target).status(Signal.Status.SENT).build());
 
-            afterCommit.run(() -> notifier.toUser(
-                    target.getId(), RealtimeNotifier.Q_SIGNAL,
-                    Map.of("type","SENT","fromUser", publicUserCard(me))
-            ));
+            // ★ 목록(listReceived) 스키마와 동일하게 푸시
+            final String message = "새로운 신호가 있어요!";
+            final Map<String,Object> payload = new LinkedHashMap<>();
+            payload.put("type", "SENT");
+            payload.put("signalId", s.getId());
+            payload.put("status", s.getStatus().name());
+            payload.put("createdAt", s.getCreatedAt());
+            payload.put("message", message);
+            payload.put("fromUser", signalUserCard(me)); // listReceived와 동일 카드
+
+            afterCommit.run(() -> notifier.toUser(target.getId(), RealtimeNotifier.Q_SIGNAL, payload));
         } else {
             if (s.getStatus() == Signal.Status.MUTUAL) throw new ApiException(ErrorCode.CONFLICT);
             if (s.getStatus() != Signal.Status.SENT) {
@@ -121,10 +126,17 @@ public class MatchingService {
                 s.setReceiverDeletedAt(null);
                 signalRepository.save(s);
 
-                afterCommit.run(() -> notifier.toUser(
-                        target.getId(), RealtimeNotifier.Q_SIGNAL,
-                        Map.of("type","SENT","fromUser", publicUserCard(me))
-                ));
+                // ★ 동일 스키마
+                final String message = "새로운 신호가 있어요!";
+                final Map<String,Object> payload = new LinkedHashMap<>();
+                payload.put("type", "SENT");
+                payload.put("signalId", s.getId());
+                payload.put("status", s.getStatus().name());
+                payload.put("createdAt", s.getCreatedAt());
+                payload.put("message", message);
+                payload.put("fromUser", signalUserCard(me));
+
+                afterCommit.run(() -> notifier.toUser(target.getId(), RealtimeNotifier.Q_SIGNAL, payload));
             }
         }
 
@@ -143,9 +155,32 @@ public class MatchingService {
         s.setReceiverDeletedAt(LocalDateTime.now());
         signalRepository.save(s);
 
+        // ★ 목록(listSent) 스키마와 동일하게 푸시 (toUser + status + message + createdAt)
+        User r = s.getReceiver(); // 거절한 사람(보낸 사람의 toUser가 됨)
+        boolean deactivated = (r.getDeactivatedAt()!=null);
+        int typeId = (r.getTypeId() != null) ? r.getTypeId() : 4;
+
+        Map<String,Object> toCard = new LinkedHashMap<>();
+        toCard.put("userId", r.getId());
+        toCard.put("name", deactivated ? unknownUserName : r.getName());
+        toCard.put("department", deactivated ? null : r.getDepartment());
+        if (deactivated) {
+            toCard.put("typeImageUrl2", unknownUserImage);
+            toCard.put("typeImageUrl3", unknownUserImage);
+        } else {
+            toCard.put("typeImageUrl3", userService.resolveTypeImage3(typeId)); // DECLINED일 땐 3번 이미지
+        }
+
+        final Map<String,Object> payload = new LinkedHashMap<>();
+        payload.put("type", "DECLINED");
+        payload.put("signalId", s.getId());
+        payload.put("status", s.getStatus().name());           // "DECLINED"
+        payload.put("createdAt", s.getCreatedAt());
+        payload.put("message", "거절하셨습니다.");
+        payload.put("toUser", toCard);                          // listSent와 동일 키/카드
+
         afterCommit.run(() -> notifier.toUser(
-                s.getSender().getId(), RealtimeNotifier.Q_SIGNAL,
-                Map.of("type","DECLINED","fromUser", publicUserCard(s.getReceiver()))
+                s.getSender().getId(), RealtimeNotifier.Q_SIGNAL, payload
         ));
         return Map.of("ok", true);
     }
@@ -183,13 +218,20 @@ public class MatchingService {
                 peers
         ); // { roomId, participants, peers, createdAt }
 
-        // 현재 사용자(meId)용 Firebase 커스텀 토큰 추가
-        resp.put("firebaseCustomToken", firebaseBridge.createCustomToken(String.valueOf(meId)));
-
-        // 성사 알림
+        // 성사 알림(목록에서 해당 상대 항목 제거할 수 있도록 peerUserId 제공)
         String roomId = String.valueOf(resp.get("roomId"));
-        Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", roomId, "peer", publicUserCard(s.getReceiver()));
-        Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", roomId, "peer", publicUserCard(s.getSender()));
+        Map<String,Object> forSender   = new LinkedHashMap<>();
+        forSender.put("type","MUTUAL");
+        forSender.put("roomId", roomId);
+        forSender.put("peer", publicUserCard(s.getReceiver()));
+        forSender.put("peerUserId", s.getReceiver().getId()); // ← 목록 제거용 힌트
+
+        Map<String,Object> forReceiver = new LinkedHashMap<>();
+        forReceiver.put("type","MUTUAL");
+        forReceiver.put("roomId", roomId);
+        forReceiver.put("peer", publicUserCard(s.getSender()));
+        forReceiver.put("peerUserId", s.getSender().getId()); // ← 목록 제거용 힌트
+
         afterCommit.run(() -> {
             notifier.toUser(s.getSender().getId(),   RealtimeNotifier.Q_MATCH, forSender);
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);

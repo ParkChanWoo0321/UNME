@@ -2,7 +2,6 @@
 package com.example.uni.auth;
 
 import com.example.uni.common.exception.ApiException;
-import com.example.uni.user.dto.UserProfileResponse;
 import com.example.uni.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +25,7 @@ public class AuthController {
     private final OAuthService oAuthService;
     private final CookieUtil cookieUtil;
     private final UserService userService;
+    private final FirebaseBridgeService firebaseBridge;
 
     @Value("${kakao.client-id}")    private String kakaoClientId;
     @Value("${kakao.redirect-uri}") private String redirectUri;
@@ -119,9 +119,14 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserProfileResponse> me(@AuthenticationPrincipal String userId) {
-        var u = userService.getActive(Long.valueOf(userId)); // 비활성 사용자 차단
-        return ResponseEntity.ok(userService.toResponse(u));
+    public ResponseEntity<Map<String,Object>> me(@AuthenticationPrincipal String userId) {
+        var u = userService.getActive(Long.valueOf(userId));
+        String firebaseCustomToken = firebaseBridge.createCustomToken(userId);
+
+        return ResponseEntity.ok(Map.of(
+                "firebaseCustomToken", firebaseCustomToken,
+                "user", userService.toResponse(u)
+        ));
     }
 
     @DeleteMapping("/kakao/unlink")
