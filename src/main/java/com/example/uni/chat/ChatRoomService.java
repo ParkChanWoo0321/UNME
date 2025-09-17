@@ -36,9 +36,10 @@ public class ChatRoomService {
     }
 
     /**
-     * participants: [uid1, uid2]
-     * peers: { "uid1": {...}, "uid2": {...} }  // 각 키는 문자열 UID
-     * 반환: { roomId, participants, peers, createdAt(ISO8601 UTC) }
+     * participants: [uid1, uid2] (숫자)  ← 응답은 숫자로 반환
+     * peers: { "uid1": {...}, "uid2": {...} }  // 키는 문자열 UID
+     * 문서 저장 시 participants는 문자열 배열로 저장(Security Rules용)
+     * 반환: { roomId, participants(숫자), peers, createdAt(ISO8601 UTC) }
      */
     public Map<String, Object> openRoom(List<Long> participants, Map<String, Object> peers) {
         if (participants == null || participants.size() != 2)
@@ -52,31 +53,41 @@ public class ChatRoomService {
         try {
             DocumentSnapshot snap = ref.get().get();
             if (!snap.exists()) {
-                // 최초 생성
+                // Firestore에는 문자열 UID로 저장
+                List<Long> sortedNum = new ArrayList<>(participants);
+                Collections.sort(sortedNum);
+                List<String> participantsStr = List.of(
+                        String.valueOf(sortedNum.get(0)),
+                        String.valueOf(sortedNum.get(1))
+                );
+
                 Map<String, Object> data = new LinkedHashMap<>();
-                List<Long> sorted = new ArrayList<>(participants);
-                Collections.sort(sorted);
-                data.put("participants", sorted);
+                data.put("participants", participantsStr);                 // 문자열 저장
                 data.put("peers", peers != null ? peers : Map.of());
-                data.put("pairKey", sorted.get(0) + "_" + sorted.get(1));
+                data.put("pairKey", participantsStr.get(0) + "_" + participantsStr.get(1));
                 data.put("createdAt", FieldValue.serverTimestamp());
                 ref.set(data, SetOptions.merge()).get();
 
-                // 서버 타임스탬프 반영 위해 한 번 더 읽기
+                // 서버 타임스탬프 반영 위해 재조회
                 snap = ref.get().get();
             }
 
-            // 응답 생성
+            // createdAt
+            Timestamp ts = snap.getTimestamp("createdAt");
+            String createdAtIso = (ts != null)
+                    ? Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()).toString()
+                    : null;
+
+            // peers (문서에 있으면 문서 기준, 없으면 파라미터)
+            @SuppressWarnings("unchecked")
+            Map<String, Object> peersOut = (Map<String, Object>) snap.get("peers");
+            if (peersOut == null) peersOut = (peers != null ? peers : Map.of());
+
+            // 응답: participants는 숫자 그대로 반환
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("roomId", roomId);
-            resp.put("participants", snap.get("participants", List.class));
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> peersRead = (Map<String, Object>) snap.get("peers");
-            resp.put("peers", peersRead != null ? peersRead : Map.of());
-
-            Timestamp ts = snap.getTimestamp("createdAt");
-            String createdAtIso = (ts != null) ? Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()).toString() : null;
+            resp.put("participants", List.copyOf(participants)); // 숫자
+            resp.put("peers", peersOut);
             resp.put("createdAt", createdAtIso);
             return resp;
 

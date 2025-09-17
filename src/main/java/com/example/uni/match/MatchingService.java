@@ -11,6 +11,7 @@ import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
+import com.example.uni.auth.FirebaseBridgeService;          // ← 추가
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,10 +27,11 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final UserCandidateRepository userCandidateRepository;
     private final SignalRepository signalRepository;
-    private final ChatRoomService chatRoomService;   // ← Firestore 전용 서비스로 교체
+    private final ChatRoomService chatRoomService;   // Firestore 방 서비스
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
+    private final FirebaseBridgeService firebaseBridge;  // ← 추가
 
     @Value("${app.unknown-user.name:알 수 없는 유저}")
     private String unknownUserName;
@@ -64,7 +66,6 @@ public class MatchingService {
             if (candidates.size() == 3) break;
             if (alreadySignaled.contains(u.getId())) continue;
 
-            // Firestore 기반 중복 방 존재 여부 체크
             boolean hasRoom = chatRoomService.existsBetween(me.getId(), u.getId());
             if (hasRoom) continue;
 
@@ -89,7 +90,6 @@ public class MatchingService {
         User target = userRepository.findById(targetId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
 
-        // 탈퇴자 차단
         if (me.getDeactivatedAt()!=null || target.getDeactivatedAt()!=null)
             throw new ApiException(ErrorCode.FORBIDDEN);
 
@@ -98,7 +98,6 @@ public class MatchingService {
         if (me.getGender() == target.getGender())
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
 
-        // Firestore 방 존재 여부로 중복 대화 차단
         if (chatRoomService.existsBetween(me.getId(), target.getId()))
             throw new ApiException(ErrorCode.CONFLICT);
 
@@ -119,7 +118,7 @@ public class MatchingService {
             if (s.getStatus() == Signal.Status.MUTUAL) throw new ApiException(ErrorCode.CONFLICT);
             if (s.getStatus() != Signal.Status.SENT) {
                 s.setStatus(Signal.Status.SENT);
-                s.setReceiverDeletedAt(null); // 재발송 시 수신자 숨김 해제
+                s.setReceiverDeletedAt(null);
                 signalRepository.save(s);
 
                 afterCommit.run(() -> notifier.toUser(
@@ -159,7 +158,6 @@ public class MatchingService {
         if (!Objects.equals(s.getReceiver().getId(), meId)) throw new ApiException(ErrorCode.FORBIDDEN);
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
-        // 탈퇴자 차단
         if (s.getSender().getDeactivatedAt()!=null || s.getReceiver().getDeactivatedAt()!=null)
             throw new ApiException(ErrorCode.FORBIDDEN);
 
@@ -174,18 +172,21 @@ public class MatchingService {
                     }
                 });
 
-        // peers 맵 구성: 키는 각 사용자 ID, 값은 "상대"의 요약 카드
+        // peers 맵 구성: 키=각 사용자ID, 값=상대 요약카드
         Map<String,Object> peers = new LinkedHashMap<>();
-        peers.put(String.valueOf(s.getSender().getId()),   userService.toPeerBriefMap(s.getReceiver()));
-        peers.put(String.valueOf(s.getReceiver().getId()), userService.toPeerBriefMap(s.getSender()));
+        peers.put(String.valueOf(s.getSender().getId()),   peerBrief(s.getReceiver()));
+        peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getSender()));
 
         // Firestore에 채팅방 생성
         Map<String,Object> resp = chatRoomService.openRoom(
                 List.of(s.getSender().getId(), s.getReceiver().getId()),
                 peers
-        ); // 반환: { roomId, participants, peers, createdAt }
+        ); // { roomId, participants, peers, createdAt }
 
-        // 성사 알림(기존 STOMP 사용 시)
+        // 현재 사용자(meId)용 Firebase 커스텀 토큰 추가
+        resp.put("firebaseCustomToken", firebaseBridge.createCustomToken(String.valueOf(meId)));
+
+        // 성사 알림
         String roomId = String.valueOf(resp.get("roomId"));
         Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", roomId, "peer", publicUserCard(s.getReceiver()));
         Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", roomId, "peer", publicUserCard(s.getSender()));
@@ -213,6 +214,17 @@ public class MatchingService {
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         card.put("typeImageUrl2", deactivated ? unknownUserImage : userService.resolveTypeImage2(typeId));
         return card;
+    }
+
+    /** 받은 사람이 보게 될 상대 요약 카드 */
+    private Map<String, Object> peerBrief(User peer) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("userId", peer.getId());
+        m.put("name", peer.getName());
+        m.put("department", peer.getDepartment());
+        int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
+        m.put("typeImageUrl", userService.resolveTypeImage(typeId));
+        return m;
     }
 
     /** 보낸 신호 목록 */
@@ -253,7 +265,7 @@ public class MatchingService {
         return out;
     }
 
-    /** 받은 신호 목록 (수신자 숨김 처리 반영) */
+    /** 받은 신호 목록 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listReceivedSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -263,11 +275,11 @@ public class MatchingService {
 
         List<Map<String,Object>> out = new ArrayList<>();
         for (Signal s : list) {
-            if (s.getStatus() != Signal.Status.SENT) continue; // 대기중만
+            if (s.getStatus() != Signal.Status.SENT) continue;
             User from = s.getSender();
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("fromUser", signalUserCard(from)); // ← 마스킹 반영됨
+            row.put("fromUser", signalUserCard(from));
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
             row.put("message", "새로운 신호가 있어요!");
@@ -276,7 +288,7 @@ public class MatchingService {
         return out;
     }
 
-    /** 다른 API에서 쓰는 기본 카드(채팅/매칭 등) — 탈퇴자 마스킹 */
+    /** 다른 API에서 쓰는 기본 카드 — 탈퇴자 마스킹 */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         boolean deactivated = (u.getDeactivatedAt()!=null);
