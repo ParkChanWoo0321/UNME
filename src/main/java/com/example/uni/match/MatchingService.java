@@ -11,6 +11,7 @@ import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
+import com.example.uni.auth.FirebaseBridgeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class MatchingService {
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
+    private final FirebaseBridgeService firebaseBridge;
 
     @Value("${app.unknown-user.name:알 수 없는 유저}")
     private String unknownUserName;
@@ -50,10 +52,8 @@ public class MatchingService {
 
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
 
-        var pool = userCandidateRepository
-                .findByGenderAndDepartmentNotAndProfileCompleteTrueAndDeactivatedAtIsNullAndIdNot(
-                        opposite, me.getDepartment(), me.getId()
-                );
+        // ★ 변경: NULL 학과 허용 + 같은 학과만 배제 JPQL로 조회
+        var pool = userCandidateRepository.findCandidates(opposite, me.getDepartment(), me.getId());
 
         Set<Long> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
@@ -217,6 +217,9 @@ public class MatchingService {
                 List.of(s.getSender().getId(), s.getReceiver().getId()),
                 peers
         ); // { roomId, participants, peers, createdAt }
+
+        // 현재 사용자(meId)용 Firebase 커스텀 토큰 추가 (기존 로직 유지)
+        resp.put("firebaseCustomToken", firebaseBridge.createCustomToken(String.valueOf(meId)));
 
         // 성사 알림(목록에서 해당 상대 항목 제거할 수 있도록 peerUserId 제공)
         String roomId = String.valueOf(resp.get("roomId"));
