@@ -39,7 +39,7 @@ public class MatchingController {
         return ResponseEntity.ok(matchingService.declineSignal(uid(principal), signalId));
     }
 
-    /** 신호 수락 */
+    /** 신호 수락 → Firestore 채팅방 생성 + roomId/participants/peers/createdAt 반환 */
     @PostMapping("/signals/accept/{signalId}")
     public ResponseEntity<Map<String,Object>> accept(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
@@ -59,12 +59,5 @@ public class MatchingController {
     public ResponseEntity<?> listReceived(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.listReceivedSignals(uid(principal)));
-    }
-
-    /** 매칭 성사 현황 */
-    @GetMapping("/matches")
-    public ResponseEntity<?> matches(
-            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
-        return ResponseEntity.ok(matchingService.listMutualMatches(uid(principal)));
     }
 }

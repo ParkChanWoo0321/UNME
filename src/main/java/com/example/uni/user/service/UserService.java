@@ -252,4 +252,15 @@ public class UserService {
                 .instagramUrl(u.getInstagramUrl())
                 .build();
     }
+
+    /** Firestore 방 문서 peers에 넣을 상대 요약 카드(Map) */
+    public Map<String,Object> toPeerBriefMap(User u){
+        int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
+        Map<String,Object> m = new LinkedHashMap<>();
+        m.put("userId", u.getId());
+        m.put("name", u.getName());
+        m.put("department", u.getDepartment());
+        m.put("typeImageUrl", imageUrlByType(typeId));
+        return m;
+    }
 }

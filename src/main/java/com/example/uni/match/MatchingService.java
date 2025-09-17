@@ -1,9 +1,7 @@
 // com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
-import com.example.uni.chat.ChatRoom;
-import com.example.uni.chat.ChatRoomRepository;
-import com.example.uni.chat.ChatService;
+import com.example.uni.chat.ChatRoomService;
 import com.example.uni.common.domain.AfterCommitExecutor;
 import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
@@ -14,7 +12,7 @@ import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value; // ← 추가
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,16 +26,15 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final UserCandidateRepository userCandidateRepository;
     private final SignalRepository signalRepository;
-    private final ChatRoomRepository chatRoomRepository;
-    private final ChatService chatService;
+    private final ChatRoomService chatRoomService;   // ← Firestore 전용 서비스로 교체
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
 
     @Value("${app.unknown-user.name:알 수 없는 유저}")
-    private String unknownUserName;         // ← 추가
+    private String unknownUserName;
     @Value("${app.unknown-user.image:}")
-    private String unknownUserImage;        // ← 추가
+    private String unknownUserImage;
 
     /** 매칭 시작 */
     @Transactional
@@ -45,7 +42,7 @@ public class MatchingService {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
 
-        if (me.getDeactivatedAt()!=null) throw new ApiException(ErrorCode.FORBIDDEN); // ← 탈퇴자 차단
+        if (me.getDeactivatedAt()!=null) throw new ApiException(ErrorCode.FORBIDDEN);
         if (!me.isProfileComplete() || me.getGender() == null)
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (me.getMatchCredits() < 1)
@@ -54,7 +51,7 @@ public class MatchingService {
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
 
         var pool = userCandidateRepository
-                .findByGenderAndDepartmentNotAndProfileCompleteTrueAndDeactivatedAtIsNullAndIdNot( // ← 변경
+                .findByGenderAndDepartmentNotAndProfileCompleteTrueAndDeactivatedAtIsNullAndIdNot(
                         opposite, me.getDepartment(), me.getId()
                 );
 
@@ -67,8 +64,8 @@ public class MatchingService {
             if (candidates.size() == 3) break;
             if (alreadySignaled.contains(u.getId())) continue;
 
-            boolean hasRoom = chatRoomRepository.findByUserAAndUserB(me, u).isPresent()
-                    || chatRoomRepository.findByUserBAndUserA(u, me).isPresent();
+            // Firestore 기반 중복 방 존재 여부 체크
+            boolean hasRoom = chatRoomService.existsBetween(me.getId(), u.getId());
             if (hasRoom) continue;
 
             candidates.add(matchCandidateCard(u));
@@ -94,16 +91,16 @@ public class MatchingService {
 
         // 탈퇴자 차단
         if (me.getDeactivatedAt()!=null || target.getDeactivatedAt()!=null)
-            throw new ApiException(ErrorCode.FORBIDDEN); // ← 추가
+            throw new ApiException(ErrorCode.FORBIDDEN);
 
         if (Objects.equals(me.getDepartment(), target.getDepartment()))
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (me.getGender() == target.getGender())
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
 
-        boolean hasRoom = chatRoomRepository.findByUserAAndUserB(me, target).isPresent()
-                || chatRoomRepository.findByUserBAndUserA(target, me).isPresent();
-        if (hasRoom) throw new ApiException(ErrorCode.CONFLICT);
+        // Firestore 방 존재 여부로 중복 대화 차단
+        if (chatRoomService.existsBetween(me.getId(), target.getId()))
+            throw new ApiException(ErrorCode.CONFLICT);
 
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
 
@@ -144,7 +141,7 @@ public class MatchingService {
         if (s.getStatus() != Signal.Status.SENT) throw new ApiException(ErrorCode.CONFLICT);
 
         s.setStatus(Signal.Status.DECLINED);
-        s.setReceiverDeletedAt(LocalDateTime.now()); // 수신자 목록에서 삭제 효과
+        s.setReceiverDeletedAt(LocalDateTime.now());
         signalRepository.save(s);
 
         afterCommit.run(() -> notifier.toUser(
@@ -154,7 +151,7 @@ public class MatchingService {
         return Map.of("ok", true);
     }
 
-    /** 신호 수락(받은 사람) — 방 생성/재사용 + 성사 알림 + 신호 삭제 */
+    /** 신호 수락(받은 사람) — Firestore 방 생성 + 성사 알림 + 신호 삭제 */
     @Transactional
     public Map<String,Object> acceptSignal(Long meId, Long signalId){
         Signal s = signalRepository.findById(signalId)
@@ -164,7 +161,7 @@ public class MatchingService {
 
         // 탈퇴자 차단
         if (s.getSender().getDeactivatedAt()!=null || s.getReceiver().getDeactivatedAt()!=null)
-            throw new ApiException(ErrorCode.FORBIDDEN); // ← 추가
+            throw new ApiException(ErrorCode.FORBIDDEN);
 
         s.setStatus(Signal.Status.MUTUAL);
         signalRepository.save(s);
@@ -177,33 +174,30 @@ public class MatchingService {
                     }
                 });
 
-        ChatRoom room = chatService.createOrReuseRoom(s.getSender().getId(), s.getReceiver().getId());
+        // peers 맵 구성: 키는 각 사용자 ID, 값은 "상대"의 요약 카드
+        Map<String,Object> peers = new LinkedHashMap<>();
+        peers.put(String.valueOf(s.getSender().getId()),   userService.toPeerBriefMap(s.getReceiver()));
+        peers.put(String.valueOf(s.getReceiver().getId()), userService.toPeerBriefMap(s.getSender()));
 
-        Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getReceiver()));
-        Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", room.getId(), "peer", publicUserCard(s.getSender()));
+        // Firestore에 채팅방 생성
+        Map<String,Object> resp = chatRoomService.openRoom(
+                List.of(s.getSender().getId(), s.getReceiver().getId()),
+                peers
+        ); // 반환: { roomId, participants, peers, createdAt }
 
+        // 성사 알림(기존 STOMP 사용 시)
+        String roomId = String.valueOf(resp.get("roomId"));
+        Map<String,Object> forSender   = Map.of("type","MUTUAL","roomId", roomId, "peer", publicUserCard(s.getReceiver()));
+        Map<String,Object> forReceiver = Map.of("type","MUTUAL","roomId", roomId, "peer", publicUserCard(s.getSender()));
         afterCommit.run(() -> {
             notifier.toUser(s.getSender().getId(),   RealtimeNotifier.Q_MATCH, forSender);
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
         });
 
-        // 성사 후 신호 삭제
+        // 성사 후 신호 삭제(양방향)
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
-        String createdAt = null;
-        if (room.getCreatedAt() != null) {
-            createdAt = room.getCreatedAt()
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .withZoneSameInstant(java.time.ZoneOffset.UTC)
-                    .toInstant()
-                    .toString();
-        }
-
-        Map<String,Object> resp = new LinkedHashMap<>();
-        resp.put("roomId", room.getId().toString());
-        resp.put("participants", List.of(s.getSender().getId(), s.getReceiver().getId()));
-        resp.put("createdAt", createdAt);
         return resp;
     }
 
@@ -221,7 +215,7 @@ public class MatchingService {
         return card;
     }
 
-    /** 보낸 신호 목록 (DECLINED → typeImageUrl3 + "거절하셨습니다.") */
+    /** 보낸 신호 목록 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listSentSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -310,24 +304,5 @@ public class MatchingService {
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         card.put("typeImageUrl", userService.resolveTypeImage(typeId));
         return card;
-    }
-
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> listMutualMatches(Long meId) {
-        User me = userRepository.findById(meId)
-                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
-
-        var rooms = chatRoomRepository.findAllForUserOrderByUpdatedAtDesc(me);
-
-        List<Map<String,Object>> out = new ArrayList<>();
-        for (ChatRoom r : rooms) {
-            User peer = r.getUserA().getId().equals(me.getId()) ? r.getUserB() : r.getUserA();
-            Map<String,Object> row = new LinkedHashMap<>();
-            row.put("peer", publicUserCard(peer)); // ← 마스킹 반영됨
-            row.put("roomId", r.getId());
-            row.put("matchedAt", r.getCreatedAt());
-            out.add(row);
-        }
-        return out;
     }
 }
