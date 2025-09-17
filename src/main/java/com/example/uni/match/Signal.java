@@ -35,7 +35,7 @@ public class Signal extends BaseTimeEntity {
     @Column(nullable = false, length = 16)
     private Status status;
 
-    public enum Status { SENT, MUTUAL, CANCELED, DECLINED }
+    public enum Status { SENT, MUTUAL, DECLINED }
 
     /** 수신자 받은목록에서만 숨김(삭제 효과) */
     @Column(name = "receiver_deleted_at")

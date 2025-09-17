@@ -40,7 +40,10 @@ public class OAuthService {
         User existing = userRepository.findByKakaoId(kakaoId).orElse(null);
 
         if (existing != null && existing.getDeactivatedAt() != null) {
-            // 과거 비활성 계정이 원래 kakaoId/email을 쥐고 있다면 여기서 해제(tombstone) 처리
+            // ▶ 닉네임(unique: name) 재사용을 위해 비활성 레코드의 name 을 비움
+            existing.setName(null);
+
+            // kakaoId/email tombstone 처리
             if (existing.getKakaoId() != null && !existing.getKakaoId().startsWith("deleted:")) {
                 existing.setKakaoId("deleted:" + existing.getKakaoId() + ":" + UUID.randomUUID());
             }
@@ -94,13 +97,16 @@ public class OAuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
 
-        // 1) 외부 언링크 (현재 kakaoId로)
+        // 1) 외부 언링크
         kakao.unlinkWithAdminKey(user.getKakaoId());
 
         // 2) 소프트탈퇴 플래그
         user.setDeactivatedAt(LocalDateTime.now());
 
-        // 3) tombstone: kakaoId/email을 유니크 충돌 없도록 해제
+        // ▶ 닉네임(unique: name) 재사용을 위해 name 을 비움
+        user.setName(null);
+
+        // 3) tombstone: kakaoId/email 유니크 충돌 방지
         String suffix = "-" + user.getId() + "-" + UUID.randomUUID();
         if (user.getKakaoId() != null && !user.getKakaoId().startsWith("deleted:")) {
             user.setKakaoId("deleted:" + user.getKakaoId() + suffix);
