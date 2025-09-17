@@ -15,7 +15,7 @@ import java.io.FileInputStream;
 @Configuration
 public class FirebaseConfig {
 
-    @Value("${firebase.project-id}")
+    @Value("${firebase.project-id:}") // ← 비어 있어도 통과
     private String projectId;
 
     @Value("${firebase.credentials}")
@@ -25,12 +25,16 @@ public class FirebaseConfig {
     public Firestore firestore() {
         synchronized (FirebaseConfig.class) {
             if (FirebaseApp.getApps().isEmpty()) {
-                try (FileInputStream serviceAccount = new FileInputStream(serviceAccountPath)) {
-                    FirebaseOptions options = FirebaseOptions.builder()
-                            .setProjectId(projectId)
-                            .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                            .build();
-                    FirebaseApp.initializeApp(options);
+                try (FileInputStream in = new FileInputStream(serviceAccountPath)) {
+                    FirebaseOptions.Builder builder = FirebaseOptions.builder()
+                            .setCredentials(GoogleCredentials.fromStream(in));
+
+                    // 값이 있을 때만 명시적으로 설정
+                    if (projectId != null && !projectId.isBlank()) {
+                        builder.setProjectId(projectId.trim());
+                    }
+
+                    FirebaseApp.initializeApp(builder.build());
                 } catch (Exception e) {
                     throw new IllegalStateException("Failed to initialize Firebase", e);
                 }
