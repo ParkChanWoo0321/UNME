@@ -98,4 +98,33 @@ public class ChatRoomService {
             throw new IllegalStateException(e);
         }
     }
+
+    /**
+     * 탈퇴 사용자를 포함한 모든 방의 peers를 마스킹하고 상태를 LEFT로 표시
+     */
+    public void markUserLeft(Long userId, String unknownName, String unknownImage) {
+        String uid = String.valueOf(userId);
+        try {
+            CollectionReference col = firestore.collection("chatRooms");
+            Query query = col.whereArrayContains("participants", uid);
+            QuerySnapshot qs = query.get().get();
+
+            for (DocumentSnapshot doc : qs.getDocuments()) {
+                DocumentReference ref = doc.getReference();
+                Map<String, Object> updates = new HashMap<>();
+                updates.put("peers."+uid+".userId", userId);
+                updates.put("peers."+uid+".name", unknownName);
+                updates.put("peers."+uid+".department", null);
+                updates.put("peers."+uid+".typeImageUrl", unknownImage);
+                updates.put("peers."+uid+".typeImageUrl2", unknownImage);
+                updates.put("peers."+uid+".status", "LEFT");
+                ref.update(updates).get();
+            }
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(ie);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException(e);
+        }
+    }
 }

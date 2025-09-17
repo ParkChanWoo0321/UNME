@@ -13,6 +13,7 @@ import com.example.uni.user.repo.UserRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,11 @@ public class UserService {
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
     private final Environment env;
+
+    @Value("${app.unknown-user.name:알 수 없는 유저}")
+    private String unknownUserName;
+    @Value("${app.unknown-user.image:}")
+    private String unknownUserImage;
 
     private String imageUrlByType(int typeId){
         String u1 = env.getProperty("app.type-image.1", "");
@@ -76,6 +82,13 @@ public class UserService {
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
     }
 
+    /** 활성 사용자 전용 조회(탈퇴 사용자는 FORBIDDEN) */
+    public User getActive(Long id){
+        User u = get(id);
+        if (u.getDeactivatedAt() != null) throw new ApiException(ErrorCode.FORBIDDEN);
+        return u;
+    }
+
     public boolean isNameAvailable(String name) {
         return !userRepository.existsByNameIgnoreCase(name);
     }
@@ -108,7 +121,7 @@ public class UserService {
     /** 기본정보 + 성별 + 성향테스트 (한 번에 완료) */
     @Transactional
     public User completeProfile(Long userId, UserOnboardingRequest req) {
-        User u = get(userId);
+        User u = getActive(userId);
 
         if (req.getName() != null) {
             userRepository.findByNameIgnoreCase(req.getName()).ifPresent(other -> {
@@ -159,14 +172,14 @@ public class UserService {
 
     @Transactional
     public User updateIntroduce(Long userId, String introduce) {
-        User u = get(userId);
+        User u = getActive(userId);
         u.setIntroduce(introduce);
         return userRepository.save(u);
     }
 
     @Transactional
     public User updateInstagram(Long userId, String raw) {
-        User u = get(userId);
+        User u = getActive(userId);
         u.setInstagramUrl(toInstagramUrlOrNull(raw));
         return userRepository.save(u);
     }
@@ -196,71 +209,64 @@ public class UserService {
         }
     }
 
+    /** 내/타 유저 공용 응답. 탈퇴자는 마스킹 */
     public UserProfileResponse toResponse(User u) {
+        boolean deactivated = (u.getDeactivatedAt()!=null);
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
-        List<String> tags = parseTags(u.getStyleTagsJson());
+        List<String> tags = deactivated ? List.of() : parseTags(u.getStyleTagsJson());
 
         return UserProfileResponse.builder()
                 .userId(u.getId())
-                .kakaoId(u.getKakaoId())
-                .email(u.getEmail())
-                .nickname(u.getNickname())
-                .name(u.getName())
-                .department(u.getDepartment())
-                .studentNo(u.getStudentNo())
-                .birthYear(u.getBirthYear())
-                .gender(u.getGender())
-                .profileComplete(u.isProfileComplete())
-                .matchCredits(u.getMatchCredits())
-                .signalCredits(u.getSignalCredits())
+                .kakaoId(deactivated ? null : u.getKakaoId())
+                .email(deactivated ? null : u.getEmail())
+                .nickname(deactivated ? null : u.getNickname())
+                .name(deactivated ? unknownUserName : u.getName())
+                .department(deactivated ? null : u.getDepartment())
+                .studentNo(deactivated ? null : u.getStudentNo())
+                .birthYear(deactivated ? null : u.getBirthYear())
+                .gender(deactivated ? null : u.getGender())
+                .profileComplete(!deactivated && u.isProfileComplete())
+                .matchCredits(deactivated ? 0 : u.getMatchCredits())
+                .signalCredits(deactivated ? 0 : u.getSignalCredits())
                 .version(u.getVersion())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(imageUrlByType(typeId))
-                .typeImageUrl2(imageUrlByType2(typeId))
-                .styleSummary(u.getStyleSummary())
-                .recommendedPartner(u.getStyleRecommendedPartner())
+                .typeImageUrl(deactivated ? unknownUserImage : imageUrlByType(typeId))
+                .typeImageUrl2(deactivated ? unknownUserImage : imageUrlByType2(typeId))
+                .styleSummary(deactivated ? null : u.getStyleSummary())
+                .recommendedPartner(deactivated ? null : u.getStyleRecommendedPartner())
                 .tags(tags)
-                .introduce(u.getIntroduce())
-                .instagramUrl(u.getInstagramUrl())
+                .introduce(deactivated ? null : u.getIntroduce())
+                .instagramUrl(deactivated ? null : u.getInstagramUrl())
                 .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
                 .updatedAt(u.getUpdatedAt() != null ? u.getUpdatedAt().toString() : null)
                 .build();
     }
 
+    /** 상대 상세 응답(탈퇴자는 마스킹) */
     public PeerDetailResponse toPeerResponse(User u){
+        boolean deactivated = (u.getDeactivatedAt()!=null);
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
-        List<String> tags = parseTags(u.getStyleTagsJson());
+        List<String> tags = deactivated ? List.of() : parseTags(u.getStyleTagsJson());
 
         return PeerDetailResponse.builder()
                 .userId(u.getId())
-                .name(u.getName())
-                .department(u.getDepartment())
-                .studentNo(u.getStudentNo())
-                .birthYear(u.getBirthYear())
-                .gender(u.getGender())
+                .name(deactivated ? unknownUserName : u.getName())
+                .department(deactivated ? null : u.getDepartment())
+                .studentNo(deactivated ? null : u.getStudentNo())
+                .birthYear(deactivated ? null : u.getBirthYear())
+                .gender(deactivated ? null : u.getGender())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(imageUrlByType(typeId))
-                .typeImageUrl2(imageUrlByType2(typeId))
-                .styleSummary(u.getStyleSummary())
-                .recommendedPartner(u.getStyleRecommendedPartner())
+                .typeImageUrl(deactivated ? unknownUserImage : imageUrlByType(typeId))
+                .typeImageUrl2(deactivated ? unknownUserImage : imageUrlByType2(typeId))
+                .styleSummary(deactivated ? null : u.getStyleSummary())
+                .recommendedPartner(deactivated ? null : u.getStyleRecommendedPartner())
                 .tags(tags)
-                .introduce(u.getIntroduce())
-                .instagramUrl(u.getInstagramUrl())
+                .introduce(deactivated ? null : u.getIntroduce())
+                .instagramUrl(deactivated ? null : u.getInstagramUrl())
                 .build();
-    }
-
-    /** Firestore 방 문서 peers에 넣을 상대 요약 카드(Map) */
-    public Map<String,Object> toPeerBriefMap(User u){
-        int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
-        Map<String,Object> m = new LinkedHashMap<>();
-        m.put("userId", u.getId());
-        m.put("name", u.getName());
-        m.put("department", u.getDepartment());
-        m.put("typeImageUrl", imageUrlByType(typeId));
-        return m;
     }
 }

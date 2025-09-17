@@ -13,4 +13,5 @@ public interface SignalRepository extends JpaRepository<Signal, Long> {
     List<Signal> findAllByReceiverAndReceiverDeletedAtIsNullOrderByCreatedAtDesc(User receiver);
     List<Signal> findAllBySender(User sender);
     void deleteBySenderAndReceiver(User sender, User receiver);
+
 }

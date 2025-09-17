@@ -24,6 +24,8 @@ public class TypeImageUploadController {
 
     @Value("${app.upload.dir:./uploads}")
     private String uploadRoot;
+
+    @Value("${server.servlet.context-path:}")
     private String contextPath; // 예: "/api" 또는 ""
 
     @PostMapping(value = "/{type}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -31,14 +33,14 @@ public class TypeImageUploadController {
                          @RequestPart("file") MultipartFile file,
                          HttpServletRequest req) throws IOException {
 
-        // 허용 타입: 1,2,3,4, 2.1~2.4, 3.1~3.4
+        // 허용 타입: 1,2,3,4, 2.1~2.4, 3.1~3.5
         List<String> allowedTypes = List.of(
                 "1", "2", "3", "4",
                 "2.1", "2.2", "2.3", "2.4",
-                "3.1", "3.2", "3.3", "3.4"
+                "3.1", "3.2", "3.3", "3.4", "3.5" // ← 추가
         );
         if (!allowedTypes.contains(type)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4, 2.1~2.4, 3.1~3.4만 허용");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4, 2.1~2.4, 3.1~3.5만 허용");
         }
 
         if (file == null || file.isEmpty()) {
@@ -53,7 +55,7 @@ public class TypeImageUploadController {
         if (!StringUtils.hasText(ext)) ext = "png";
         ext = ext.toLowerCase();
 
-        String filename = "type" + type + "." + ext; // ex) type3.1.png
+        String filename = "type" + type + "." + ext; // ex) type3.5.png
         Path target = dir.resolve(filename);
         file.transferTo(target.toFile());
 
@@ -69,7 +71,7 @@ public class TypeImageUploadController {
         if (type.startsWith("2.")) {
             propertyKey = "app.type-image2." + type.substring(2);
         } else if (type.startsWith("3.")) {
-            propertyKey = "app.type-image3." + type.substring(2);
+            propertyKey = "app.type-image3." + type.substring(2); // 3.5 -> app.type-image3.5
         } else {
             propertyKey = "app.type-image." + type;
         }
@@ -80,7 +82,7 @@ public class TypeImageUploadController {
                 "url", url,
                 "propertyKey", propertyKey,
                 "propertyValue", url,
-                "note", "application.properties에 위 propertyValue를 붙여넣어 사용"
+                "note", "application.properties에 위 propertyKey=propertyValue로 설정하세요"
         );
     }
 }

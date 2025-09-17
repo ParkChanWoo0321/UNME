@@ -2,10 +2,7 @@
 package com.example.uni.auth;
 
 import com.example.uni.common.exception.ApiException;
-import com.example.uni.common.exception.ErrorCode;
-import com.example.uni.user.domain.User;
 import com.example.uni.user.dto.UserProfileResponse;
-import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,7 +23,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final UserRepository userRepository;
     private final OAuthService oAuthService;
     private final CookieUtil cookieUtil;
     private final UserService userService;
@@ -101,14 +97,19 @@ public class AuthController {
     public ResponseEntity<?> reissueAccess(HttpServletRequest request, HttpServletResponse response) {
         String refresh = cookieUtil.resolveRefreshFromRequest(request);
         if (refresh == null) return ResponseEntity.status(401).body(Map.of("error","NO_REFRESH"));
+
         String userId = oAuthService.validateRefreshAndGetUserId(refresh);
+        try {
+            String rotated = oAuthService.rotateRefresh(refresh); // 비활성 유저면 여기서 예외
+            if (rotated != null) cookieUtil.setRefreshCookie(response, rotated);
 
-        String rotated = oAuthService.rotateRefresh(refresh);
-        if (rotated != null) cookieUtil.setRefreshCookie(response, rotated);
-
-        String access = oAuthService.issueAccessToken(userId);
-        long expiresIn = oAuthService.getAccessTtlSeconds();
-        return ResponseEntity.ok(Map.of("accessToken", access, "expiresIn", expiresIn));
+            String access = oAuthService.issueAccessToken(userId); // 비활성 유저면 예외
+            long expiresIn = oAuthService.getAccessTtlSeconds();
+            return ResponseEntity.ok(Map.of("accessToken", access, "expiresIn", expiresIn));
+        } catch (ApiException e) {
+            cookieUtil.clearRefreshCookie(response);
+            return ResponseEntity.status(401).body(Map.of("error","NO_ACTIVE_USER"));
+        }
     }
 
     @PostMapping("/logout")
@@ -119,8 +120,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<UserProfileResponse> me(@AuthenticationPrincipal String userId) {
-        User u = userRepository.findById(Long.valueOf(userId))
-                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        var u = userService.getActive(Long.valueOf(userId)); // 비활성 사용자 차단
         return ResponseEntity.ok(userService.toResponse(u));
     }
 

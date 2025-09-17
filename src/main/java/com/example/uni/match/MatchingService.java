@@ -11,7 +11,7 @@ import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
-import com.example.uni.auth.FirebaseBridgeService;          // ← 추가
+import com.example.uni.auth.FirebaseBridgeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,7 @@ public class MatchingService {
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
-    private final FirebaseBridgeService firebaseBridge;  // ← 추가
+    private final FirebaseBridgeService firebaseBridge;
 
     @Value("${app.unknown-user.name:알 수 없는 유저}")
     private String unknownUserName;
@@ -227,7 +227,7 @@ public class MatchingService {
         return m;
     }
 
-    /** 보낸 신호 목록 */
+    /** 보낸 신호 목록 — 탈퇴자 메시지 반영 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listSentSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -246,11 +246,15 @@ public class MatchingService {
             toCard.put("department", deactivated ? null : r.getDepartment());
 
             String message;
-            if (s.getStatus() == Signal.Status.DECLINED) {
-                toCard.put("typeImageUrl3", deactivated ? unknownUserImage : userService.resolveTypeImage3(typeId));
+            if (deactivated) {
+                toCard.put("typeImageUrl2", unknownUserImage);
+                toCard.put("typeImageUrl3", unknownUserImage);
+                message = "탈퇴한 사용자입니다.";
+            } else if (s.getStatus() == Signal.Status.DECLINED) {
+                toCard.put("typeImageUrl3", userService.resolveTypeImage3(typeId));
                 message = "거절하셨습니다.";
             } else {
-                toCard.put("typeImageUrl2", deactivated ? unknownUserImage : userService.resolveTypeImage2(typeId));
+                toCard.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
                 message = "성공적으로 신호를 보냈어요!";
             }
 
@@ -265,7 +269,7 @@ public class MatchingService {
         return out;
     }
 
-    /** 받은 신호 목록 */
+    /** 받은 신호 목록 — 탈퇴자 메시지 반영 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listReceivedSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -277,12 +281,14 @@ public class MatchingService {
         for (Signal s : list) {
             if (s.getStatus() != Signal.Status.SENT) continue;
             User from = s.getSender();
+            boolean deactivated = (from.getDeactivatedAt()!=null);
+
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("fromUser", signalUserCard(from));
+            row.put("fromUser", signalUserCard(from)); // 마스킹 적용됨
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
-            row.put("message", "새로운 신호가 있어요!");
+            row.put("message", deactivated ? "탈퇴한 사용자입니다." : "새로운 신호가 있어요!");
             out.add(row);
         }
         return out;
