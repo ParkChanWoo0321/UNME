@@ -6,7 +6,6 @@ import com.google.cloud.firestore.DocumentReference;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.Query;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.google.cloud.firestore.SetOptions;
 import lombok.RequiredArgsConstructor;
@@ -55,20 +54,28 @@ public class ChatRoomService {
             if (!snap.exists()) {
                 List<Long> sortedNum = new ArrayList<>(participants);
                 Collections.sort(sortedNum);
-                List<String> participantsStr = List.of(
-                        String.valueOf(sortedNum.get(0)),
-                        String.valueOf(sortedNum.get(1))
-                );
+                String pairKey = sortedNum.get(0) + "_" + sortedNum.get(1);
 
                 Map<String, Object> data = new LinkedHashMap<>();
-                data.put("participants", participantsStr);
-                data.put("participantsNum", sortedNum);
+                data.put("participants", sortedNum);
                 data.put("peers", peers != null ? peers : Map.of());
-                data.put("pairKey", participantsStr.get(0) + "_" + participantsStr.get(1));
+                data.put("pairKey", pairKey);
                 data.put("createdAt", FieldValue.serverTimestamp());
                 ref.set(data, SetOptions.merge()).get();
 
                 snap = ref.get().get();
+            } else {
+                Object p = snap.get("participants");
+                if (p instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof String) {
+                    List<Long> migrated = new ArrayList<>();
+                    for (Object v : list) migrated.add(Long.valueOf(String.valueOf(v)));
+                    Map<String, Object> upd = new HashMap<>();
+                    upd.put("participants", migrated);
+                    String pairKey = migrated.get(0) + "_" + migrated.get(1);
+                    upd.put("pairKey", pairKey);
+                    ref.update(upd).get();
+                    snap = ref.get().get();
+                }
             }
 
             Timestamp ts = snap.getTimestamp("createdAt");
@@ -99,10 +106,14 @@ public class ChatRoomService {
         String uid = String.valueOf(userId);
         try {
             CollectionReference col = firestore.collection("chatRooms");
-            Query query = col.whereArrayContains("participants", uid);
-            QuerySnapshot qs = query.get().get();
+            QuerySnapshot qsNum = col.whereArrayContains("participants", userId).get().get();
+            QuerySnapshot qsStr = col.whereArrayContains("participants", uid).get().get();
 
-            for (DocumentSnapshot doc : qs.getDocuments()) {
+            Map<String, DocumentSnapshot> docs = new LinkedHashMap<>();
+            for (DocumentSnapshot d : qsNum.getDocuments()) docs.put(d.getId(), d);
+            for (DocumentSnapshot d : qsStr.getDocuments()) docs.put(d.getId(), d);
+
+            for (DocumentSnapshot doc : docs.values()) {
                 DocumentReference ref = doc.getReference();
                 Map<String, Object> updates = new HashMap<>();
                 updates.put("peers."+uid+".userId", userId);
