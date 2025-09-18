@@ -194,8 +194,8 @@ public class MatchingService {
                 });
 
         Map<String,Object> peers = new LinkedHashMap<>();
-        peers.put(String.valueOf(s.getSender().getId()),   peerBrief(s.getReceiver()));
-        peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getSender()));
+        peers.put(String.valueOf(s.getSender().getId()),   peerBrief(s.getSender()));
+        peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getReceiver()));
 
         Map<String,Object> resp = chatRoomService.openRoom(
                 List.of(s.getSender().getId(), s.getReceiver().getId()),
