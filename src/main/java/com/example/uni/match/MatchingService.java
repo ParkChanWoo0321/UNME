@@ -1,3 +1,4 @@
+// com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
 import com.example.uni.chat.ChatRoomService;
@@ -25,7 +26,7 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final UserCandidateRepository userCandidateRepository;
     private final SignalRepository signalRepository;
-    private final ChatRoomService chatRoomService;
+    private final ChatRoomService chatRoomService;   // Firestore 방 서비스
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
@@ -35,6 +36,7 @@ public class MatchingService {
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
 
+    /** 매칭 시작 */
     @Transactional
     public MatchResultResponse requestMatch(Long meId){
         User me = userRepository.findById(meId)
@@ -47,6 +49,8 @@ public class MatchingService {
             throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
 
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
+
+        // ★ 변경: NULL 학과 허용 + 같은 학과만 배제 JPQL로 조회
         var pool = userCandidateRepository.findCandidates(opposite, me.getDepartment(), me.getId());
 
         Set<Long> alreadySignaled = new HashSet<>();
@@ -57,8 +61,10 @@ public class MatchingService {
         for (User u : pool) {
             if (candidates.size() == 3) break;
             if (alreadySignaled.contains(u.getId())) continue;
+
             boolean hasRoom = chatRoomService.existsBetween(me.getId(), u.getId());
             if (hasRoom) continue;
+
             candidates.add(matchCandidateCard(u));
         }
 
@@ -70,6 +76,7 @@ public class MatchingService {
         return MatchResultResponse.builder().candidates(candidates).build();
     }
 
+    /** 신호 보내기 */
     @Transactional
     public Map<String,Object> sendSignal(Long meId, Long targetId){
         if (Objects.equals(meId, targetId)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
@@ -99,6 +106,7 @@ public class MatchingService {
             s = signalRepository.save(Signal.builder()
                     .sender(me).receiver(target).status(Signal.Status.SENT).build());
 
+            // ★ 목록(listReceived) 스키마와 동일하게 푸시
             final String message = "새로운 신호가 있어요!";
             final Map<String,Object> payload = new LinkedHashMap<>();
             payload.put("type", "SENT");
@@ -106,7 +114,7 @@ public class MatchingService {
             payload.put("status", s.getStatus().name());
             payload.put("createdAt", s.getCreatedAt());
             payload.put("message", message);
-            payload.put("fromUser", signalUserCard(me));
+            payload.put("fromUser", signalUserCard(me)); // listReceived와 동일 카드
 
             afterCommit.run(() -> notifier.toUser(target.getId(), RealtimeNotifier.Q_SIGNAL, payload));
         } else {
@@ -116,6 +124,7 @@ public class MatchingService {
                 s.setReceiverDeletedAt(null);
                 signalRepository.save(s);
 
+                // ★ 동일 스키마
                 final String message = "새로운 신호가 있어요!";
                 final Map<String,Object> payload = new LinkedHashMap<>();
                 payload.put("type", "SENT");
@@ -132,6 +141,7 @@ public class MatchingService {
         return Map.of("signalId", s.getId(), "status", s.getStatus().name());
     }
 
+    /** 신호 거절(받은 사람) */
     @Transactional
     public Map<String,Object> declineSignal(Long meId, Long signalId){
         Signal s = signalRepository.findById(signalId)
@@ -143,7 +153,8 @@ public class MatchingService {
         s.setReceiverDeletedAt(LocalDateTime.now());
         signalRepository.save(s);
 
-        User r = s.getReceiver();
+        // ★ 목록(listSent) 스키마와 동일하게 푸시 (toUser + status + message + createdAt)
+        User r = s.getReceiver(); // 거절한 사람(보낸 사람의 toUser가 됨)
         boolean deactivated = (r.getDeactivatedAt()!=null);
         int typeId = (r.getTypeId() != null) ? r.getTypeId() : 4;
 
@@ -155,16 +166,16 @@ public class MatchingService {
             toCard.put("typeImageUrl2", unknownUserImage);
             toCard.put("typeImageUrl3", unknownUserImage);
         } else {
-            toCard.put("typeImageUrl3", userService.resolveTypeImage3(typeId));
+            toCard.put("typeImageUrl3", userService.resolveTypeImage3(typeId)); // DECLINED일 땐 3번 이미지
         }
 
         final Map<String,Object> payload = new LinkedHashMap<>();
         payload.put("type", "DECLINED");
         payload.put("signalId", s.getId());
-        payload.put("status", s.getStatus().name());
+        payload.put("status", s.getStatus().name());           // "DECLINED"
         payload.put("createdAt", s.getCreatedAt());
         payload.put("message", "거절하셨습니다.");
-        payload.put("toUser", toCard);
+        payload.put("toUser", toCard);                          // listSent와 동일 키/카드
 
         afterCommit.run(() -> notifier.toUser(
                 s.getSender().getId(), RealtimeNotifier.Q_SIGNAL, payload
@@ -172,6 +183,7 @@ public class MatchingService {
         return Map.of("ok", true);
     }
 
+    /** 신호 수락(받은 사람) — Firestore 방 생성 + 성사 알림 + 신호 삭제 */
     @Transactional
     public Map<String,Object> acceptSignal(Long meId, Long signalId){
         Signal s = signalRepository.findById(signalId)
@@ -193,50 +205,58 @@ public class MatchingService {
                     }
                 });
 
+        // peers 맵 구성: 키=각 사용자ID, 값=상대 요약카드
         Map<String,Object> peers = new LinkedHashMap<>();
-        peers.put(String.valueOf(s.getSender().getId()),   peerBrief(s.getSender()));
-        peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getReceiver()));
+        peers.put(String.valueOf(s.getSender().getId()),   peerBrief(s.getReceiver()));
+        peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getSender()));
 
+        // Firestore에 채팅방 생성
         Map<String,Object> resp = chatRoomService.openRoom(
                 List.of(s.getSender().getId(), s.getReceiver().getId()),
                 peers
-        );
+        ); // { roomId, participants, peers, createdAt }
 
+        // 성사 알림(목록에서 해당 상대 항목 제거할 수 있도록 peerUserId 제공)
         String roomId = String.valueOf(resp.get("roomId"));
         Map<String,Object> forSender   = new LinkedHashMap<>();
         forSender.put("type","MUTUAL");
         forSender.put("roomId", roomId);
         forSender.put("peer", publicUserCard(s.getReceiver()));
-        forSender.put("peerUserId", s.getReceiver().getId());
+        forSender.put("peerUserId", s.getReceiver().getId()); // ← 목록 제거용 힌트
 
         Map<String,Object> forReceiver = new LinkedHashMap<>();
         forReceiver.put("type","MUTUAL");
         forReceiver.put("roomId", roomId);
         forReceiver.put("peer", publicUserCard(s.getSender()));
-        forReceiver.put("peerUserId", s.getSender().getId());
+        forReceiver.put("peerUserId", s.getSender().getId()); // ← 목록 제거용 힌트
 
         afterCommit.run(() -> {
             notifier.toUser(s.getSender().getId(),   RealtimeNotifier.Q_MATCH, forSender);
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
         });
 
+        // 성사 후 신호 삭제(양방향)
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
 
         return resp;
     }
 
+    // 받은목록 카드: 탈퇴자면 마스킹
     private Map<String, Object> signalUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
+
         boolean deactivated = (u.getDeactivatedAt()!=null);
-        card.put("name", deactivated ? unknownUserName  : u.getName());
-        card.put("department", deactivated ? null : u.getDepartment());
+        card.put("name",       deactivated ? unknownUserName  : u.getName());
+        card.put("department", deactivated ? null             : u.getDepartment());
+
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         card.put("typeImageUrl2", deactivated ? unknownUserImage : userService.resolveTypeImage2(typeId));
         return card;
     }
 
+    /** 받은 사람이 보게 될 상대 요약 카드 */
     private Map<String, Object> peerBrief(User peer) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("userId", peer.getId());
@@ -244,10 +264,10 @@ public class MatchingService {
         m.put("department", peer.getDepartment());
         int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
         m.put("typeImageUrl", userService.resolveTypeImage(typeId));
-        m.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
         return m;
     }
 
+    /** 보낸 신호 목록 — 탈퇴자 메시지 반영 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listSentSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -289,6 +309,7 @@ public class MatchingService {
         return out;
     }
 
+    /** 받은 신호 목록 — 탈퇴자 메시지 반영 */
     @Transactional(readOnly = true)
     public List<Map<String,Object>> listReceivedSignals(Long meId){
         User me = userRepository.findById(meId)
@@ -304,7 +325,7 @@ public class MatchingService {
 
             Map<String,Object> row = new LinkedHashMap<>();
             row.put("signalId", s.getId());
-            row.put("fromUser", signalUserCard(from));
+            row.put("fromUser", signalUserCard(from)); // 마스킹 적용됨
             row.put("status", s.getStatus().name());
             row.put("createdAt", s.getCreatedAt());
             row.put("message", deactivated ? "탈퇴한 사용자입니다." : "새로운 신호가 있어요!");
@@ -313,6 +334,7 @@ public class MatchingService {
         return out;
     }
 
+    /** 다른 API에서 쓰는 기본 카드 — 탈퇴자 마스킹 */
     private Map<String, Object> publicUserCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         boolean deactivated = (u.getDeactivatedAt()!=null);
@@ -329,14 +351,18 @@ public class MatchingService {
         return card;
     }
 
+    /** 매칭 후보 전용 카드 */
     private Map<String,Object> matchCandidateCard(User u) {
         Map<String,Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
         card.put("name", u.getName());
         card.put("department", u.getDepartment());
         card.put("introduce", u.getIntroduce());
+
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         card.put("typeImageUrl", userService.resolveTypeImage(typeId));
         return card;
     }
 }
+
+

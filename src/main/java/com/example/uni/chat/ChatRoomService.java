@@ -1,13 +1,8 @@
+// com/example/uni/chat/ChatRoomService.java
 package com.example.uni.chat;
 
 import com.google.cloud.Timestamp;
-import com.google.cloud.firestore.CollectionReference;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.FieldValue;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.QuerySnapshot;
-import com.google.cloud.firestore.SetOptions;
+import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -40,6 +35,12 @@ public class ChatRoomService {
         }
     }
 
+    /**
+     * participants: [uid1, uid2] (숫자)  ← 응답은 숫자로 반환
+     * peers: { "uid1": {...}, "uid2": {...} }  // 키는 문자열 UID
+     * 문서 저장 시 participants는 문자열 배열로 저장(Security Rules용)
+     * 반환: { roomId, participants(숫자), peers, createdAt(ISO8601 UTC) }
+     */
     public Map<String, Object> openRoom(List<Long> participants, Map<String, Object> peers) {
         if (participants == null || participants.size() != 2)
             throw new IllegalArgumentException("participants must have exactly 2 user IDs");
@@ -52,44 +53,40 @@ public class ChatRoomService {
         try {
             DocumentSnapshot snap = ref.get().get();
             if (!snap.exists()) {
+                // Firestore에는 문자열 UID로 저장
                 List<Long> sortedNum = new ArrayList<>(participants);
                 Collections.sort(sortedNum);
-                String pairKey = sortedNum.get(0) + "_" + sortedNum.get(1);
+                List<String> participantsStr = List.of(
+                        String.valueOf(sortedNum.get(0)),
+                        String.valueOf(sortedNum.get(1))
+                );
 
                 Map<String, Object> data = new LinkedHashMap<>();
-                data.put("participants", sortedNum);
+                data.put("participants", participantsStr);                 // 문자열 저장
                 data.put("peers", peers != null ? peers : Map.of());
-                data.put("pairKey", pairKey);
+                data.put("pairKey", participantsStr.get(0) + "_" + participantsStr.get(1));
                 data.put("createdAt", FieldValue.serverTimestamp());
                 ref.set(data, SetOptions.merge()).get();
 
+                // 서버 타임스탬프 반영 위해 재조회
                 snap = ref.get().get();
-            } else {
-                Object p = snap.get("participants");
-                if (p instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof String) {
-                    List<Long> migrated = new ArrayList<>();
-                    for (Object v : list) migrated.add(Long.valueOf(String.valueOf(v)));
-                    Map<String, Object> upd = new HashMap<>();
-                    upd.put("participants", migrated);
-                    String pairKey = migrated.get(0) + "_" + migrated.get(1);
-                    upd.put("pairKey", pairKey);
-                    ref.update(upd).get();
-                    snap = ref.get().get();
-                }
             }
 
+            // createdAt
             Timestamp ts = snap.getTimestamp("createdAt");
             String createdAtIso = (ts != null)
                     ? Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()).toString()
                     : null;
 
+            // peers (문서에 있으면 문서 기준, 없으면 파라미터)
             @SuppressWarnings("unchecked")
             Map<String, Object> peersOut = (Map<String, Object>) snap.get("peers");
             if (peersOut == null) peersOut = (peers != null ? peers : Map.of());
 
+            // 응답: participants는 숫자 그대로 반환
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("roomId", roomId);
-            resp.put("participants", List.copyOf(participants));
+            resp.put("participants", List.copyOf(participants)); // 숫자
             resp.put("peers", peersOut);
             resp.put("createdAt", createdAtIso);
             return resp;
@@ -102,18 +99,17 @@ public class ChatRoomService {
         }
     }
 
+    /**
+     * 탈퇴 사용자를 포함한 모든 방의 peers를 마스킹하고 상태를 LEFT로 표시
+     */
     public void markUserLeft(Long userId, String unknownName, String unknownImage) {
         String uid = String.valueOf(userId);
         try {
             CollectionReference col = firestore.collection("chatRooms");
-            QuerySnapshot qsNum = col.whereArrayContains("participants", userId).get().get();
-            QuerySnapshot qsStr = col.whereArrayContains("participants", uid).get().get();
+            Query query = col.whereArrayContains("participants", uid);
+            QuerySnapshot qs = query.get().get();
 
-            Map<String, DocumentSnapshot> docs = new LinkedHashMap<>();
-            for (DocumentSnapshot d : qsNum.getDocuments()) docs.put(d.getId(), d);
-            for (DocumentSnapshot d : qsStr.getDocuments()) docs.put(d.getId(), d);
-
-            for (DocumentSnapshot doc : docs.values()) {
+            for (DocumentSnapshot doc : qs.getDocuments()) {
                 DocumentReference ref = doc.getReference();
                 Map<String, Object> updates = new HashMap<>();
                 updates.put("peers."+uid+".userId", userId);
