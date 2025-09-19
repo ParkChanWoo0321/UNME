@@ -16,6 +16,21 @@ public class MatchingController {
 
     private Long uid(String principal){ return Long.valueOf(principal); }
 
+    /** ✅ 이전 매칭 결과 조회 */
+    @GetMapping("/match/previous")
+    public ResponseEntity<?> previous(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
+        return ResponseEntity.ok(matchingService.previousMatches(uid(principal)));
+    }
+
+    /** ✅ 특정 사용자 플러팅 상태 조회 */
+    @GetMapping("/signals/{targetId}/status")
+    public ResponseEntity<Map<String,Object>> signalStatus(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
+            @PathVariable Long targetId){
+        return ResponseEntity.ok(matchingService.signalStatus(uid(principal), targetId));
+    }
+
     /** 매칭 시작 */
     @PostMapping("/match/start")
     public ResponseEntity<MatchResultResponse> start(

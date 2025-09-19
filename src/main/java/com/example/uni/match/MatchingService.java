@@ -11,6 +11,8 @@ import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
 import com.example.uni.user.repo.UserRepository;
 import com.example.uni.user.service.UserService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -30,11 +32,40 @@ public class MatchingService {
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
+    private final ObjectMapper om; // ✅ 추가(직렬화/역직렬화)
 
     @Value("${app.unknown-user.name:알 수 없는 유저}")
     private String unknownUserName;
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
+
+    /** 최근 매칭 결과 조회용 */
+    @Transactional(readOnly = true)
+    public Map<String, Object> previousMatches(Long meId) {
+        User me = userRepository.findById(meId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        List<Map<String,Object>> list = new ArrayList<>();
+        try {
+            if (me.getLastMatchJson() != null && !me.getLastMatchJson().isBlank()) {
+                list = om.readValue(me.getLastMatchJson(), new TypeReference<>() {});
+            }
+        } catch (Exception ignore) { /* 빈 리스트 반환 */ }
+        // 프론트 호환 alias 보강(안전)
+        for (Map<String,Object> c : list) addClientAliases(c);
+        return Map.of("candidates", list);
+    }
+
+    /** 특정 사용자에 대한 플러팅 상태 조회 */
+    @Transactional(readOnly = true)
+    public Map<String,Object> signalStatus(Long meId, Long targetId) {
+        if (Objects.equals(meId, targetId)) return Map.of("alreadySent", false);
+        User me = userRepository.findById(meId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        User target = userRepository.findById(targetId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        boolean already = signalRepository.findBySenderAndReceiver(me, target).isPresent();
+        return Map.of("alreadySent", already);
+    }
 
     @Transactional
     public MatchResultResponse requestMatch(Long meId){
@@ -45,10 +76,13 @@ public class MatchingService {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (me.getMatchCredits() < 1)
             throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
+
         Gender opposite = (me.getGender()==Gender.MALE) ? Gender.FEMALE : Gender.MALE;
         var pool = userCandidateRepository.findCandidates(opposite, me.getDepartment(), me.getId());
+
         Set<Long> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
+
         List<Map<String,Object>> candidates = new ArrayList<>();
         Collections.shuffle(pool);
         for (User u : pool) {
@@ -56,12 +90,28 @@ public class MatchingService {
             if (alreadySignaled.contains(u.getId())) continue;
             boolean hasRoom = chatRoomService.existsBetween(me.getId(), u.getId());
             if (hasRoom) continue;
-            candidates.add(matchCandidateCard(u));
+            Map<String,Object> card = matchCandidateCard(u);
+            addClientAliases(card); // ✅ alias 보강
+            candidates.add(card);
         }
+
         if (candidates.isEmpty()) {
+            // 후보 없으면 크레딧 차감 X, 저장도 안 함
             return MatchResultResponse.builder().candidates(candidates).build();
         }
+
+        // 크레딧 차감
         me.setMatchCredits(me.getMatchCredits() - 1);
+
+        // ✅ 최근 매칭 저장
+        try {
+            me.setLastMatchJson(om.writeValueAsString(candidates));
+        } catch (Exception e) {
+            me.setLastMatchJson("[]");
+        }
+        me.setLastMatchAt(LocalDateTime.now());
+        userRepository.save(me);
+
         return MatchResultResponse.builder().candidates(candidates).build();
     }
 
@@ -80,6 +130,7 @@ public class MatchingService {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (chatRoomService.existsBetween(me.getId(), target.getId()))
             throw new ApiException(ErrorCode.CONFLICT);
+
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
         if (s == null) {
             if (me.getSignalCredits() < 1) throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
@@ -210,6 +261,14 @@ public class MatchingService {
             String img2 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage2(typeId);
             card.put("typeImageUrl2", img2);
         }
+        // alias(선택)
+        card.put("id", u.getId());
+        card.put("targetUserId", u.getId());
+        card.put("nickname", deactivated ? null : u.getName());
+        card.put("major", deactivated ? null : u.getDepartment());
+        String avatar = (u.getProfileImageUrl()!=null && !u.getProfileImageUrl().trim().isEmpty()) ? u.getProfileImageUrl() : null;
+        card.put("avatarUrl", avatar);
+        card.put("profileImageUrl", avatar);
         return card;
     }
 
@@ -320,6 +379,34 @@ public class MatchingService {
         String profile = u.getProfileImageUrl();
         String img1 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage(typeId);
         card.put("typeImageUrl", img1);
+        // alias(프론트 호환)
+        card.put("id", u.getId());
+        card.put("targetUserId", u.getId());
+        card.put("nickname", u.getName() != null ? u.getName() : u.getNickname());
+        card.put("major", u.getDepartment());
+        String avatar = (profile != null && !profile.trim().isEmpty()) ? profile : null;
+        card.put("avatarUrl", avatar);
+        card.put("profileImageUrl", avatar);
         return card;
+    }
+
+    private void addClientAliases(Map<String,Object> card) {
+        Object uid = card.getOrDefault("userId", card.get("id"));
+        if (uid != null) {
+            card.putIfAbsent("userId", uid);
+            card.putIfAbsent("id", uid);
+            card.putIfAbsent("targetUserId", uid);
+        }
+        Object name = card.get("name");
+        if (name != null) card.putIfAbsent("nickname", name);
+        Object dept = card.get("department");
+        if (dept != null) card.putIfAbsent("major", dept);
+        Object avatar = card.get("avatarUrl");
+        if (avatar == null) {
+            avatar = card.get("profileImageUrl");
+            if (avatar != null) card.putIfAbsent("avatarUrl", avatar);
+        } else {
+            card.putIfAbsent("profileImageUrl", avatar);
+        }
     }
 }
