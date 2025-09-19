@@ -1,4 +1,3 @@
-// com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
 import com.example.uni.common.exception.ApiException;
@@ -107,12 +106,21 @@ public class UserService {
     }
 
     private static String determineEgenType(Map<String,String> answers) {
-        int aCnt = 0;
+        String[] egenBy = {"a","a","a","a","a","b","a","b","a","a"};
+        int score = 0;
         for (int i = 1; i <= 10; i++) {
-            String v = Optional.ofNullable(answers.get("q"+i)).orElse("").trim().toLowerCase();
-            if ("a".equals(v)) aCnt++;
+            String sel = Optional.ofNullable(answers.get("q"+i)).orElse("").trim().toLowerCase();
+            if (sel.equals(egenBy[i-1])) score++;
         }
-        return aCnt >= 6 ? "EGEN" : "TETO";
+        return score >= 6 ? "EGEN" : "TETO";
+    }
+
+    private static String toKoEgen(String v){
+        if (v == null) return null;
+        String s = v.trim().toUpperCase();
+        if (s.equals("EGEN")) return "에겐";
+        if (s.equals("TETO")) return "테토";
+        return null;
     }
 
     private static TypeText toTypeText(int typeId){
@@ -149,7 +157,6 @@ public class UserService {
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
         u.setTypeId(determineTypeId(answers));
-        String defaultEgen = determineEgenType(answers);
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -158,16 +165,12 @@ public class UserService {
                 u.setStyleSummary(ds.getFeature());
                 u.setStyleRecommendedPartner(ds.getRecommendedPartner());
                 u.setStyleTagsJson(om.writeValueAsString(ds.getTags()));
-                String egen = ds.getEgenType();
-                if (egen == null) egen = "";
-                egen = egen.toUpperCase();
-                if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = defaultEgen;
-                u.setEgenType(egen);
+                u.setEgenType(determineEgenType(answers));
             }
             u.setDatingStyleAnswersJson(newJson);
         } catch (Exception e) {
             u.setDatingStyleAnswersJson("{}");
-            u.setEgenType(defaultEgen);
+            u.setEgenType(determineEgenType(answers));
         }
         u.setProfileComplete(true);
         if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
@@ -234,6 +237,7 @@ public class UserService {
         String profile = deactivated ? null : validProfile(u);
         String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
         String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
+        String egenOut = deactivated ? null : toKoEgen(u.getEgenType());
         return UserProfileResponse.builder()
                 .userId(u.getId())
                 .kakaoId(deactivated ? null : u.getKakaoId())
@@ -258,7 +262,7 @@ public class UserService {
                 .introduce(deactivated ? null : u.getIntroduce())
                 .instagramUrl(deactivated ? null : u.getInstagramUrl())
                 .mbti(deactivated ? null : u.getMbti())
-                .egenType(deactivated ? null : u.getEgenType())
+                .egenType(egenOut)
                 .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
                 .updatedAt(u.getUpdatedAt() != null ? u.getUpdatedAt().toString() : null)
                 .build();
@@ -272,6 +276,7 @@ public class UserService {
         String profile = deactivated ? null : validProfile(u);
         String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
         String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
+        String egenOut = deactivated ? null : toKoEgen(u.getEgenType());
         return PeerDetailResponse.builder()
                 .userId(u.getId())
                 .name(deactivated ? unknownUserName : u.getName())
@@ -289,7 +294,7 @@ public class UserService {
                 .introduce(deactivated ? null : u.getIntroduce())
                 .instagramUrl(deactivated ? null : u.getInstagramUrl())
                 .mbti(deactivated ? null : u.getMbti())
-                .egenType(deactivated ? null : u.getEgenType())
+                .egenType(egenOut)
                 .build();
     }
 }

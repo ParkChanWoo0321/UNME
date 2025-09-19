@@ -1,3 +1,4 @@
+// com/example/uni/user/ai/GptTextGenClient.java
 package com.example.uni.user.ai;
 
 import com.example.uni.user.dto.DatingStyleSummary;
@@ -60,13 +61,7 @@ public class GptTextGenClient implements TextGenClient {
                 "model", model,
                 "messages", new Object[]{
                         Map.of("role","system","content",
-                                "너는 데이팅 성향 결과를 한국어로 생성한다. 반드시 JSON만 출력해. " +
-                                        "코드블록/설명/개행/이모지 금지. " +
-                                        "JSON schema: {\"feature\":\"문장 1~2개, 180~220자\", " +
-                                        "\"recommendedPartner\":\"문장 1개, 110~150자\", " +
-                                        "\"tags\":[\"단어\",\"단어\",\"단어\"], " +
-                                        "\"egenType\":\"EGEN|TETO\"} " +
-                                        "tags는 해시 없이 3개의 핵심 단어, 중복 금지. egenType은 대문자 EGEN 또는 TETO 중 하나."),
+                                "너는 데이팅 성향 결과를 한국어로 생성한다. 반드시 JSON만 출력해. 코드블록/설명/개행/이모지 금지. JSON schema: {\"feature\":\"문장 1~2개, 180~220자\", \"recommendedPartner\":\"문장 1개, 110~150자\", \"tags\":[\"단어\",\"단어\",\"단어\"]} tags는 해시 없이 3개의 핵심 단어, 중복 금지."),
                         Map.of("role","user","content", prompt)
                 },
                 "temperature", 0.4,
@@ -112,9 +107,6 @@ public class GptTextGenClient implements TextGenClient {
             List<String> raw = toStringList(json.get("tags"));
             if (raw.isEmpty()) raw = List.of("안정감","소통","배려");
             List<String> tags = normalizeTags(raw);
-            String egen = clean((String) json.getOrDefault("egenType", ""));
-            egen = egen == null ? "" : egen.toUpperCase();
-            if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = "";
 
             if (feature.isBlank() || partner.isBlank()) {
                 log.warn("[GPT] JSON 필드 누락/비어있음 → 기본값 보강. content={}", abbreviate(content));
@@ -126,7 +118,7 @@ public class GptTextGenClient implements TextGenClient {
                     .feature(feature)
                     .recommendedPartner(partner)
                     .tags(tags)
-                    .egenType(egen)
+                    .egenType(null)
                     .build();
 
         } catch (WebClientResponseException e) {
@@ -229,7 +221,7 @@ public class GptTextGenClient implements TextGenClient {
             sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
                     .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
-        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"],\"egenType\":\"EGEN|TETO\"}");
+        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"]}");
         return sb.toString();
     }
 
