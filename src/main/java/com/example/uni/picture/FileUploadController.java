@@ -35,6 +35,18 @@ public class FileUploadController {
             @AuthenticationPrincipal String principal,
             @RequestPart("file") MultipartFile file
     ) throws IOException {
+        // 간단 서버측 검증(프론트와 일치): 이미지 MIME, 10MB 제한
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "EMPTY_FILE"));
+        }
+        if (file.getSize() > 10L * 1024 * 1024) { // 10MB
+            return ResponseEntity.badRequest().body(Map.of("error", "FILE_TOO_LARGE"));
+        }
+        String contentType = Optional.ofNullable(file.getContentType()).orElse("");
+        if (!contentType.toLowerCase().startsWith("image/")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "NOT_IMAGE"));
+        }
+
         Long uid = principal != null ? Long.valueOf(principal) : null;
         String original = StringUtils.cleanPath(Optional.ofNullable(file.getOriginalFilename()).orElse(""));
         String ext = "";
@@ -49,9 +61,11 @@ public class FileUploadController {
         Path target = dir.resolve(filename);
         Files.write(target, file.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
+        // context-path(/api) 및 외부 base-url 반영
         String prefix = apiPrefix == null ? "" : apiPrefix.trim();
         if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
-        String rel = (prefix + "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename).replaceAll("//+", "/");
+        String rel = (prefix + "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename)
+                .replaceAll("//+", "/");
 
         String base = publicBaseUrl == null ? "" : publicBaseUrl.trim();
         if (!base.isEmpty()) {
