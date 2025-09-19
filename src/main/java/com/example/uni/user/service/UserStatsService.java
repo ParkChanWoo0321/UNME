@@ -34,12 +34,16 @@ public class UserStatsService {
     private String toCanonical(String raw) {
         if (raw == null) return "";
         String n = Normalizer.normalize(raw, Normalizer.Form.NFKC).trim();
-        String ascii = n.replaceAll("[^A-Za-z]", "").toUpperCase(Locale.ROOT);
-        if ("EGEN".equals(ascii)) return "EGEN";
-        if ("TETO".equals(ascii)) return "TETO";
-        String hangul = n.replaceAll("[^가-힣]", "");
+
+        String s = n.replaceAll("\\p{Z}+", "");
+        String ascii = s.replaceAll("[^A-Za-z]", "").toUpperCase(Locale.ROOT);
+        if (ascii.equals("EGEN") || ascii.equals("EG") || ascii.contains("EGEN")) return "EGEN";
+        if (ascii.equals("TETO") || ascii.equals("TT") || ascii.contains("TETO")) return "TETO";
+
+        String hangul = s.replaceAll("[^가-힣]", "");
         if (hangul.contains("에겐")) return "EGEN";
         if (hangul.contains("테토")) return "TETO";
+
         return "";
     }
 
