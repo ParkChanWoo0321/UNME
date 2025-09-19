@@ -29,6 +29,7 @@ public class MatchingService {
     private final UserCandidateRepository userCandidateRepository;
     private final SignalRepository signalRepository;
     private final SignalLogRepository signalLogRepository;
+    private final MatchLogRepository matchLogRepository;
     private final ChatRoomService chatRoomService;
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
@@ -205,6 +206,14 @@ public class MatchingService {
                 signalRepository.save(other);
             }
         });
+
+        matchLogRepository.save(MatchLog.builder()
+                .userAId(s.getSender().getId())
+                .userBId(s.getReceiver().getId())
+                .departmentA(s.getSender().getDepartment())
+                .departmentB(s.getReceiver().getDepartment())
+                .build());
+
         Map<String, Object> peers = new LinkedHashMap<>();
         peers.put(String.valueOf(s.getSender().getId()), peerBrief(s.getReceiver()));
         peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getSender()));
@@ -303,6 +312,20 @@ public class MatchingService {
             m.put("department", dept);
             m.put("count", cnt);
             out.add(m);
+        }
+        return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> rankDepartmentMatches(int limit) {
+        var rows = matchLogRepository.rankDepartmentsByMatches();
+        var out = new ArrayList<Map<String, Object>>();
+        int i = 1;
+        for (Object[] r : rows) {
+            if (out.size() >= limit) break;
+            String dept = (String) r[0];
+            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
+            out.add(Map.of("rank", i++, "department", dept, "count", cnt));
         }
         return out;
     }
