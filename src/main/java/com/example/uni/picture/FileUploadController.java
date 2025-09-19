@@ -1,7 +1,6 @@
 // com/example/uni/picture/FileUploadController.java
 package com.example.uni.picture;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -28,8 +27,7 @@ public class FileUploadController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String,Object>> upload(
             @AuthenticationPrincipal String principal,
-            @RequestPart("file") MultipartFile file,
-            HttpServletRequest req
+            @RequestPart("file") MultipartFile file
     ) throws IOException {
         Long uid = principal != null ? Long.valueOf(principal) : null;
         String original = StringUtils.cleanPath(Optional.ofNullable(file.getOriginalFilename()).orElse(""));
@@ -45,14 +43,7 @@ public class FileUploadController {
         Path target = dir.resolve(filename);
         Files.write(target, file.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        String scheme = Optional.ofNullable(req.getHeader("X-Forwarded-Proto")).filter(s -> !s.isBlank()).orElse(req.getScheme());
-        String host = Optional.ofNullable(req.getHeader("X-Forwarded-Host")).filter(s -> !s.isBlank()).orElse(req.getServerName());
-        int port = req.getServerPort();
-        String portPart = (host.contains(":") || port == 80 || port == 443) ? "" : ":" + port;
-
         String path = "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename;
-        String url = scheme + "://" + host + portPart + path;
-
-        return ResponseEntity.ok(Map.of("url", url));
+        return ResponseEntity.ok(Map.of("url", path));
     }
 }
