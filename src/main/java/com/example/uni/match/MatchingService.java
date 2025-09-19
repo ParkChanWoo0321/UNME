@@ -6,6 +6,10 @@ import com.example.uni.common.domain.AfterCommitExecutor;
 import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
 import com.example.uni.common.realtime.RealtimeNotifier;
+import com.example.uni.rank.SignalLog;
+import com.example.uni.rank.MatchLog;
+import com.example.uni.rank.MatchLogRepository;
+import com.example.uni.rank.SignalLogRepository;
 import com.example.uni.user.domain.Gender;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserCandidateRepository;
@@ -432,5 +436,33 @@ public class MatchingService {
         } else {
             card.putIfAbsent("profileImageUrl", avatar);
         }
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> rankMbtiBySignals(int limit) {
+        var rows = signalLogRepository.countByReceiverMbti();
+        var out = new java.util.ArrayList<java.util.Map<String, Object>>();
+        int i = 1;
+        for (Object[] r : rows) {
+            if (out.size() >= limit) break;
+            String mbti = (String) r[0];
+            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
+            out.add(java.util.Map.of("rank", i++, "mbti", mbti, "count", cnt));
+        }
+        return out;
+    }
+
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public java.util.List<java.util.Map<String, Object>> rankMbtiByMatches(int limit) {
+        var rows = matchLogRepository.rankMbtiByMatches();
+        var out = new java.util.ArrayList<java.util.Map<String, Object>>();
+        int i = 1;
+        for (Object[] r : rows) {
+            if (out.size() >= limit) break;
+            String mbti = (String) r[0];
+            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
+            out.add(java.util.Map.of("rank", i++, "mbti", mbti, "count", cnt));
+        }
+        return out;
     }
 }

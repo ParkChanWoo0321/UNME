@@ -1,5 +1,5 @@
 // com/example/uni/match/SignalLog.java
-package com.example.uni.match;
+package com.example.uni.rank;
 
 import com.example.uni.common.domain.BaseTimeEntity;
 import jakarta.persistence.*;
