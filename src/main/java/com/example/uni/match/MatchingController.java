@@ -16,14 +16,12 @@ public class MatchingController {
 
     private Long uid(String principal){ return Long.valueOf(principal); }
 
-    /** ✅ 이전 매칭 결과 조회 */
     @GetMapping("/match/previous")
     public ResponseEntity<?> previous(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.previousMatches(uid(principal)));
     }
 
-    /** ✅ 특정 사용자 플러팅 상태 조회 */
     @GetMapping("/signals/{targetId}/status")
     public ResponseEntity<Map<String,Object>> signalStatus(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
@@ -31,14 +29,12 @@ public class MatchingController {
         return ResponseEntity.ok(matchingService.signalStatus(uid(principal), targetId));
     }
 
-    /** 매칭 시작 */
     @PostMapping("/match/start")
     public ResponseEntity<MatchResultResponse> start(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.requestMatch(uid(principal)));
     }
 
-    /** 신호 보내기 */
     @PostMapping("/signals/{targetId}")
     public ResponseEntity<Map<String,Object>> sendSignal(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
@@ -46,7 +42,6 @@ public class MatchingController {
         return ResponseEntity.ok(matchingService.sendSignal(uid(principal), targetId));
     }
 
-    /** 신호 거절(받은 사람) */
     @PostMapping("/signals/decline/{signalId}")
     public ResponseEntity<Map<String,Object>> decline(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
@@ -54,7 +49,6 @@ public class MatchingController {
         return ResponseEntity.ok(matchingService.declineSignal(uid(principal), signalId));
     }
 
-    /** 신호 수락 → Firestore 채팅방 생성 + roomId/participants/peers/createdAt 반환 */
     @PostMapping("/signals/accept/{signalId}")
     public ResponseEntity<Map<String,Object>> accept(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
@@ -62,17 +56,22 @@ public class MatchingController {
         return ResponseEntity.ok(matchingService.acceptSignal(uid(principal), signalId));
     }
 
-    /** 신호 보낸 목록 */
     @GetMapping("/signals/sent")
     public ResponseEntity<?> listSent(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.listSentSignals(uid(principal)));
     }
 
-    /** 신호 받은 목록 */
     @GetMapping("/signals/received")
     public ResponseEntity<?> listReceived(
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.listReceivedSignals(uid(principal)));
+    }
+
+    @GetMapping("/signals/rank/departments")
+    public ResponseEntity<?> rankDepartments(
+            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
+            @RequestParam(name = "limit", defaultValue = "10") int limit){
+        return ResponseEntity.ok(matchingService.rankDepartments(limit));
     }
 }
