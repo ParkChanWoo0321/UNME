@@ -20,7 +20,7 @@ public class UserStatsService {
         long total = userRepository.countByDeactivatedAtIsNull();
         long egen = 0, teto = 0;
         for (String raw : userRepository.findActiveEgenTypes()) {
-            String key = normalize(raw);
+            String key = toCanonical(raw);
             if ("EGEN".equals(key)) egen++;
             else if ("TETO".equals(key)) teto++;
         }
@@ -31,11 +31,16 @@ public class UserStatsService {
         );
     }
 
-    private String normalize(String s) {
-        if (s == null) return "";
-        String n = Normalizer.normalize(s, Normalizer.Form.NFKC);
-        n = n.replaceAll("[^A-Za-z]", "");
-        return n.toUpperCase(Locale.ROOT);
+    private String toCanonical(String raw) {
+        if (raw == null) return "";
+        String n = Normalizer.normalize(raw, Normalizer.Form.NFKC).trim();
+        String ascii = n.replaceAll("[^A-Za-z]", "").toUpperCase(Locale.ROOT);
+        if ("EGEN".equals(ascii)) return "EGEN";
+        if ("TETO".equals(ascii)) return "TETO";
+        String hangul = n.replaceAll("[^가-힣]", "");
+        if (hangul.contains("에겐")) return "EGEN";
+        if (hangul.contains("테토")) return "TETO";
+        return "";
     }
 
     private double pct(long cnt, long total) {
