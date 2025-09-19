@@ -90,4 +90,10 @@ public class User extends BaseTimeEntity {
 
     @Column(name = "profile_image_url")
     private String profileImageUrl;
+
+    @Column(name = "mbti", length = 16)
+    private String mbti;
+
+    @Column(name = "egen_type", length = 10)
+    private String egenType;
 }

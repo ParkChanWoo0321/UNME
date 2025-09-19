@@ -10,4 +10,5 @@ public class DatingStyleSummary {
     private final String feature;
     private final String recommendedPartner;
     private final List<String> tags;
+    private final String egenType;
 }

@@ -33,13 +33,11 @@ public class GptTextGenClient implements TextGenClient {
     @Value("${openai.model:gpt-4o-mini}")
     private String model;
 
-    /** ✅ 서버 시작 시 API 키 확인 */
     @PostConstruct
     public void checkKey() {
         if (apiKey == null || apiKey.isBlank()) {
             log.error("[GPT] API Key 로드 실패 (null/blank)");
         } else {
-            // 앞 10자리만 찍고 나머지는 마스킹
             String masked = apiKey.length() > 13
                     ? apiKey.substring(0, 10) + "..." + apiKey.substring(apiKey.length() - 3)
                     : apiKey;
@@ -62,16 +60,17 @@ public class GptTextGenClient implements TextGenClient {
                 "model", model,
                 "messages", new Object[]{
                         Map.of("role","system","content",
-                                "너는 데이팅 성향 결과를 한국어로 생성한다. " +
-                                        "반드시 JSON만 출력해. 코드블록/설명/개행/이모지 금지. " +
+                                "너는 데이팅 성향 결과를 한국어로 생성한다. 반드시 JSON만 출력해. " +
+                                        "코드블록/설명/개행/이모지 금지. " +
                                         "JSON schema: {\"feature\":\"문장 1~2개, 180~220자\", " +
                                         "\"recommendedPartner\":\"문장 1개, 110~150자\", " +
-                                        "\"tags\":[\"단어\",\"단어\",\"단어\"]} " +
-                                        "tags는 해시 없이 3개의 핵심 단어, 중복 금지."),
+                                        "\"tags\":[\"단어\",\"단어\",\"단어\"], " +
+                                        "\"egenType\":\"EGEN|TETO\"} " +
+                                        "tags는 해시 없이 3개의 핵심 단어, 중복 금지. egenType은 대문자 EGEN 또는 TETO 중 하나."),
                         Map.of("role","user","content", prompt)
                 },
                 "temperature", 0.4,
-                "max_tokens", 380
+                "max_tokens", 420
         );
 
         try {
@@ -113,6 +112,9 @@ public class GptTextGenClient implements TextGenClient {
             List<String> raw = toStringList(json.get("tags"));
             if (raw.isEmpty()) raw = List.of("안정감","소통","배려");
             List<String> tags = normalizeTags(raw);
+            String egen = clean((String) json.getOrDefault("egenType", ""));
+            egen = egen == null ? "" : egen.toUpperCase();
+            if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = "";
 
             if (feature.isBlank() || partner.isBlank()) {
                 log.warn("[GPT] JSON 필드 누락/비어있음 → 기본값 보강. content={}", abbreviate(content));
@@ -124,6 +126,7 @@ public class GptTextGenClient implements TextGenClient {
                     .feature(feature)
                     .recommendedPartner(partner)
                     .tags(tags)
+                    .egenType(egen)
                     .build();
 
         } catch (WebClientResponseException e) {
@@ -140,10 +143,10 @@ public class GptTextGenClient implements TextGenClient {
                 .feature(defaultFeature())
                 .recommendedPartner(defaultPartner())
                 .tags(List.of("안정감","소통","배려"))
+                .egenType(null)
                 .build();
     }
 
-    /** Object → List<String> 안전 변환 */
     private static List<String> toStringList(Object v) {
         if (v == null) return List.of();
         if (v instanceof List<?> list) {
@@ -211,13 +214,13 @@ public class GptTextGenClient implements TextGenClient {
         String[][] qs = new String[][]{
                 {"새로운 사람 만남 선호","친구들과 함께하는 시끌벅적한 모임(a)","조용한 1:1 대화(b)"},
                 {"상대 선택 기준","유머러스/즐거움(a)","진지한 대화(b)"},
-                {"선호 데이트","야외 활동(a)","실내 활동(b)"},
+                {"첫 인사할 때, 어떤 모습일까요?","먼저 다가가서 밝게 인사하기(a)","작게 웃으면서 고개 숙이기(b)"},
                 {"갈등 태도","직접 소통/해결(a)","경청/부드럽게 대처(b)"},
                 {"외모/스타일","힙/트렌디/강렬(a)","깔끔/단정/부드러움(b)"},
                 {"계획 성향","즉흥적(a)","계획적(b)"},
                 {"애정 표현","솔직/직접(a)","은근/섬세(b)"},
                 {"관계 가치","흥미/활력(a)","안정/신뢰(b)"},
-                {"첫 대화","가볍고 친근한 질문(a)","가치관 등 깊은 질문(b)"},
+                {"호감 있는 사람과 데이트 중 손이 닿았을 때, 어떻게 할 건가요?","자연스럽게 손 잡기(a)","작게 웃으며 눈치만 보기(b)"},
                 {"상호작용","분위기 주도/리드(a)","경청/맞춤(b)"}
         };
         StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 근거로 결과를 만들어라.\n\n");
@@ -226,7 +229,7 @@ public class GptTextGenClient implements TextGenClient {
             sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
                     .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
-        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"]}");
+        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"],\"egenType\":\"EGEN|TETO\"}");
         return sb.toString();
     }
 
@@ -235,7 +238,6 @@ public class GptTextGenClient implements TextGenClient {
         return s.length() > 300 ? s.substring(0, 300) + "..." : s;
     }
 
-    /** ---- 최소 DTO (응답에서 쓰는 부분만) ---- */
     private record ChatCompletionResponse(List<Choice> choices) {}
     private record Choice(Message message) {}
     private record Message(String role, String content) {}

@@ -1,3 +1,4 @@
+// com/example/uni/user/dto/UserProfileResponse.java
 package com.example.uni.user.dto;
 
 import com.example.uni.user.domain.Gender;
@@ -9,7 +10,7 @@ import java.util.List;
 @Getter
 @Builder
 public class UserProfileResponse {
-    private Long userId;          // ← Long
+    private Long userId;
     private String kakaoId;
     private String email;
     private String nickname;
@@ -31,6 +32,8 @@ public class UserProfileResponse {
     private List<String> tags;
     private String introduce;
     private String instagramUrl;
+    private String mbti;
+    private String egenType;
     private String createdAt;
     private String updatedAt;
 }

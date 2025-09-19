@@ -106,6 +106,15 @@ public class UserService {
         return 4;
     }
 
+    private static String determineEgenType(Map<String,String> answers) {
+        int aCnt = 0;
+        for (int i = 1; i <= 10; i++) {
+            String v = Optional.ofNullable(answers.get("q"+i)).orElse("").trim().toLowerCase();
+            if ("a".equals(v)) aCnt++;
+        }
+        return aCnt >= 6 ? "EGEN" : "TETO";
+    }
+
     private static TypeText toTypeText(int typeId){
         return switch (typeId) {
             case 1 -> new TypeText("활발한 에너지형", "관계의 즐거움과 생기를 붙여넣는 매력의 소유자!");
@@ -132,6 +141,7 @@ public class UserService {
             throw new ApiException(ErrorCode.CONFLICT);
         }
         u.setGender(req.getGender());
+        u.setMbti(req.getMbti());
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
@@ -139,6 +149,7 @@ public class UserService {
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
         u.setTypeId(determineTypeId(answers));
+        String defaultEgen = determineEgenType(answers);
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -147,10 +158,16 @@ public class UserService {
                 u.setStyleSummary(ds.getFeature());
                 u.setStyleRecommendedPartner(ds.getRecommendedPartner());
                 u.setStyleTagsJson(om.writeValueAsString(ds.getTags()));
+                String egen = ds.getEgenType();
+                if (egen == null) egen = "";
+                egen = egen.toUpperCase();
+                if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = defaultEgen;
+                u.setEgenType(egen);
             }
             u.setDatingStyleAnswersJson(newJson);
         } catch (Exception e) {
             u.setDatingStyleAnswersJson("{}");
+            u.setEgenType(defaultEgen);
         }
         u.setProfileComplete(true);
         if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
@@ -241,6 +258,8 @@ public class UserService {
                 .tags(tags)
                 .introduce(deactivated ? null : u.getIntroduce())
                 .instagramUrl(deactivated ? null : u.getInstagramUrl())
+                .mbti(deactivated ? null : u.getMbti())
+                .egenType(deactivated ? null : u.getEgenType())
                 .createdAt(u.getCreatedAt() != null ? u.getCreatedAt().toString() : null)
                 .updatedAt(u.getUpdatedAt() != null ? u.getUpdatedAt().toString() : null)
                 .build();
@@ -270,6 +289,8 @@ public class UserService {
                 .tags(tags)
                 .introduce(deactivated ? null : u.getIntroduce())
                 .instagramUrl(deactivated ? null : u.getInstagramUrl())
+                .mbti(deactivated ? null : u.getMbti())
+                .egenType(deactivated ? null : u.getEgenType())
                 .build();
     }
 }

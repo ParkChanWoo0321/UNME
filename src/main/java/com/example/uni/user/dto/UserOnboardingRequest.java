@@ -1,3 +1,4 @@
+// com/example/uni/user/dto/UserOnboardingRequest.java
 package com.example.uni.user.dto;
 
 import com.example.uni.user.domain.Gender;
@@ -29,6 +30,8 @@ public class UserOnboardingRequest {
 
     @NotNull(message = "성별은 필수입니다")
     private Gender gender;
+
+    private String mbti;
 
     @NotNull @Pattern(regexp="^[ab]$") private String q1;
     @NotNull @Pattern(regexp="^[ab]$") private String q2;

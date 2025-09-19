@@ -1,3 +1,4 @@
+// com/example/uni/user/dto/PeerDetailResponse.java
 package com.example.uni.user.dto;
 
 import com.example.uni.user.domain.Gender;
@@ -9,7 +10,7 @@ import java.util.List;
 @Getter
 @Builder
 public class PeerDetailResponse {
-    private Long userId;          // ← Long
+    private Long userId;
     private String name;
     private String department;
     private String studentNo;
@@ -24,4 +25,6 @@ public class PeerDetailResponse {
     private List<String> tags;
     private String introduce;
     private String instagramUrl;
+    private String mbti;
+    private String egenType;
 }
