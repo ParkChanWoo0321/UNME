@@ -18,7 +18,7 @@ public class UserStatsService {
         long total = userRepository.countByDeactivatedAtIsNull();
         Map<String, Long> map = new HashMap<>();
         for (Object[] r : userRepository.countActiveByEgenType()) {
-            String type = (String) r[0];
+            String type = ((String) r[0]).trim().toUpperCase();
             long cnt = ((Number) r[1]).longValue();
             map.put(type, cnt);
         }
