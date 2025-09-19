@@ -6,7 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
-import java.util.*;
+import java.util.Locale;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +34,7 @@ public class UserStatsService {
     private String normalize(String s) {
         if (s == null) return "";
         String n = Normalizer.normalize(s, Normalizer.Form.NFKC);
-        n = n.replaceAll("[\\p{Z}\\s_\\-]+", "");
+        n = n.replaceAll("[^A-Za-z]", "");
         return n.toUpperCase(Locale.ROOT);
     }
 
