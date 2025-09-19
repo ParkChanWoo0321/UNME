@@ -1,6 +1,7 @@
 // com/example/uni/picture/FileUploadController.java
 package com.example.uni.picture;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -18,22 +19,17 @@ import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/files")
+@RequestMapping({"/files", "/api/files"})
 public class FileUploadController {
 
     @Value("${app.upload.dir:./uploads}")
     private String uploadRoot;
 
-    @Value("${app.api-prefix:/api}")
-    private String apiPrefix;
-
-    @Value("${app.public-base-url:}")
-    private String publicBaseUrl;
-
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String,Object>> upload(
             @AuthenticationPrincipal String principal,
-            @RequestPart("file") MultipartFile file
+            @RequestPart("file") MultipartFile file,
+            HttpServletRequest req
     ) throws IOException {
         Long uid = principal != null ? Long.valueOf(principal) : null;
         String original = StringUtils.cleanPath(Optional.ofNullable(file.getOriginalFilename()).orElse(""));
@@ -49,16 +45,20 @@ public class FileUploadController {
         Path target = dir.resolve(filename);
         Files.write(target, file.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        String prefix = apiPrefix == null ? "" : apiPrefix.trim();
-        if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
-        String rel = (prefix + "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename).replaceAll("//+", "/");
+        String uri = Optional.ofNullable(req.getRequestURI()).orElse("");
+        String usedPrefix = uri.contains("/api/files/") ? "/api/files" : "/files";
 
-        String base = publicBaseUrl == null ? "" : publicBaseUrl.trim();
-        if (!base.isEmpty()) {
-            base = base.replaceAll("/+$", "");
-            return ResponseEntity.ok(Map.of("url", base + rel));
-        } else {
-            return ResponseEntity.ok(Map.of("url", rel));
+        String scheme = Optional.ofNullable(req.getHeader("X-Forwarded-Proto")).filter(s -> !s.isBlank()).orElse(req.getScheme());
+        String host = Optional.ofNullable(req.getHeader("X-Forwarded-Host")).filter(s -> !s.isBlank()).orElse(req.getServerName());
+        String portPart = "";
+        if (!host.contains(":")) {
+            int port = req.getServerPort();
+            if (port != 80 && port != 443) portPart = ":" + port;
         }
+
+        String path = usedPrefix + "/profile-images/" + (uid != null ? uid + "/" : "") + filename;
+        String url = scheme + "://" + host + portPart + path;
+
+        return ResponseEntity.ok(Map.of("url", url));
     }
 }

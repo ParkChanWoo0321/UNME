@@ -142,14 +142,17 @@ public class UserService {
         }
         u.setGender(req.getGender());
         u.setMbti(req.getMbti());
+
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
         answers.put("q5", req.getQ5()); answers.put("q6", req.getQ6());
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
+
         u.setTypeId(determineTypeId(answers));
         String defaultEgen = determineEgenType(answers);
+
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -158,9 +161,8 @@ public class UserService {
                 u.setStyleSummary(ds.getFeature());
                 u.setStyleRecommendedPartner(ds.getRecommendedPartner());
                 u.setStyleTagsJson(om.writeValueAsString(ds.getTags()));
-                String egen = ds.getEgenType();
-                if (egen == null) egen = "";
-                egen = egen.toUpperCase();
+
+                String egen = Optional.ofNullable(ds.getEgenType()).orElse("").toUpperCase();
                 if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = defaultEgen;
                 u.setEgenType(egen);
             }
@@ -169,6 +171,7 @@ public class UserService {
             u.setDatingStyleAnswersJson("{}");
             u.setEgenType(defaultEgen);
         }
+
         u.setProfileComplete(true);
         if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
         if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
@@ -235,6 +238,7 @@ public class UserService {
         String profile = deactivated ? null : validProfile(u);
         String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
         String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
+
         return UserProfileResponse.builder()
                 .userId(u.getId())
                 .kakaoId(deactivated ? null : u.getKakaoId())
@@ -273,6 +277,7 @@ public class UserService {
         String profile = deactivated ? null : validProfile(u);
         String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
         String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
+
         return PeerDetailResponse.builder()
                 .userId(u.getId())
                 .name(deactivated ? unknownUserName : u.getName())
