@@ -49,8 +49,10 @@ public class FileUploadController {
         String host = Optional.ofNullable(req.getHeader("X-Forwarded-Host")).filter(s -> !s.isBlank()).orElse(req.getServerName());
         int port = req.getServerPort();
         String portPart = (host.contains(":") || port == 80 || port == 443) ? "" : ":" + port;
+        String prefix = Optional.ofNullable(req.getHeader("X-Forwarded-Prefix")).filter(s -> !s.isBlank()).orElse("");
+        if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
 
-        String path = "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename;
+        String path = (prefix + "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename).replaceAll("//+", "/");
         String url = scheme + "://" + host + portPart + path;
 
         return ResponseEntity.ok(Map.of("url", url));
