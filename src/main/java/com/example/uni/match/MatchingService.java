@@ -263,7 +263,7 @@ public class MatchingService {
         m.put("name", peer.getName());
         m.put("department", peer.getDepartment());
         int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
-        m.put("typeImageUrl", userService.resolveTypeImage(typeId));
+        m.put("typeImageUrl2", userService.resolveTypeImage2(typeId));
         return m;
     }
 
