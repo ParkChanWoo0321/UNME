@@ -117,6 +117,7 @@ public class ChatRoomService {
                 updates.put("peers."+uid+".department", null);
                 updates.put("peers."+uid+".typeImageUrl", unknownImage);
                 updates.put("peers."+uid+".typeImageUrl2", unknownImage);
+                updates.put("peers."+uid+".typeImageUrl3", unknownImage);
                 updates.put("peers."+uid+".status", "LEFT");
                 ref.update(updates).get();
             }

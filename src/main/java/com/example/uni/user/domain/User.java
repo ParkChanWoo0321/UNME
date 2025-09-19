@@ -5,7 +5,7 @@ import com.example.uni.common.domain.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime; // ← 추가
+import java.time.LocalDateTime;
 
 @Getter @Setter
 @Entity
@@ -85,7 +85,9 @@ public class User extends BaseTimeEntity {
     @Column(name = "style_tags_json")
     private String styleTagsJson;
 
-    /** 소프트탈퇴 시각(널이면 활성) */
     @Column(name = "deactivated_at")
-    private LocalDateTime deactivatedAt; // ← 추가
+    private LocalDateTime deactivatedAt;
+
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
 }

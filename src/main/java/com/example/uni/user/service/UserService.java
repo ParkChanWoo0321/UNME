@@ -82,7 +82,6 @@ public class UserService {
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
     }
 
-    /** 활성 사용자 전용 조회(탈퇴 사용자는 FORBIDDEN) */
     public User getActive(Long id){
         User u = get(id);
         if (u.getDeactivatedAt() != null) throw new ApiException(ErrorCode.FORBIDDEN);
@@ -100,7 +99,6 @@ public class UserService {
             if ("a".equals(v)) aCnt++;
         }
         int bCnt = 10 - aCnt;
-
         if (aCnt >= 7) return 1;
         if (bCnt >= 7) return 2;
         if (aCnt == 5) return 4;
@@ -118,36 +116,29 @@ public class UserService {
     }
     private record TypeText(String title, String content) {}
 
-    /** 기본정보 + 성별 + 성향테스트 (한 번에 완료) */
     @Transactional
     public User completeProfile(Long userId, UserOnboardingRequest req) {
         User u = getActive(userId);
-
         if (req.getName() != null) {
             userRepository.findByNameIgnoreCase(req.getName()).ifPresent(other -> {
                 if (!Objects.equals(other.getId(), userId)) throw new ApiException(ErrorCode.CONFLICT);
             });
             u.setName(req.getName());
         }
-
         u.setDepartment(req.getDepartment());
         u.setStudentNo(req.getStudentNo());
         u.setBirthYear(req.getBirthYear());
-
         if (u.getGender() != null && u.getGender() != req.getGender()) {
             throw new ApiException(ErrorCode.CONFLICT);
         }
         u.setGender(req.getGender());
-
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
         answers.put("q5", req.getQ5()); answers.put("q6", req.getQ6());
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
-
         u.setTypeId(determineTypeId(answers));
-
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -161,12 +152,9 @@ public class UserService {
         } catch (Exception e) {
             u.setDatingStyleAnswersJson("{}");
         }
-
         u.setProfileComplete(true);
-
         if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
         if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
-
         return userRepository.save(u);
     }
 
@@ -184,16 +172,22 @@ public class UserService {
         return userRepository.save(u);
     }
 
+    @Transactional
+    public User updateProfileImageUrl(Long userId, String url) {
+        User u = getActive(userId);
+        String v = url != null ? url.trim() : null;
+        u.setProfileImageUrl(v == null || v.isEmpty() ? null : v);
+        return userRepository.save(u);
+    }
+
     private String toInstagramUrlOrNull(String raw) {
         if (raw == null) return null;
         String v = raw.trim();
         if (v.isEmpty()) return null;
-
         if (v.startsWith("http://") || v.startsWith("https://")) {
             return v;
         }
         if (v.charAt(0) == '@') v = v.substring(1);
-
         if (!v.matches("^[A-Za-z0-9._]{1,30}$")) {
             return null;
         }
@@ -209,13 +203,21 @@ public class UserService {
         }
     }
 
-    /** 내/타 유저 공용 응답. 탈퇴자는 마스킹 */
+    private String validProfile(User u) {
+        String p = u.getProfileImageUrl();
+        if (p == null) return null;
+        String t = p.trim();
+        return t.isEmpty() ? null : t;
+    }
+
     public UserProfileResponse toResponse(User u) {
         boolean deactivated = (u.getDeactivatedAt()!=null);
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
         List<String> tags = deactivated ? List.of() : parseTags(u.getStyleTagsJson());
-
+        String profile = deactivated ? null : validProfile(u);
+        String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
+        String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
         return UserProfileResponse.builder()
                 .userId(u.getId())
                 .kakaoId(deactivated ? null : u.getKakaoId())
@@ -232,8 +234,8 @@ public class UserService {
                 .version(u.getVersion())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(deactivated ? unknownUserImage : imageUrlByType(typeId))
-                .typeImageUrl2(deactivated ? unknownUserImage : imageUrlByType2(typeId))
+                .typeImageUrl(img1)
+                .typeImageUrl2(img2)
                 .styleSummary(deactivated ? null : u.getStyleSummary())
                 .recommendedPartner(deactivated ? null : u.getStyleRecommendedPartner())
                 .tags(tags)
@@ -244,13 +246,14 @@ public class UserService {
                 .build();
     }
 
-    /** 상대 상세 응답(탈퇴자는 마스킹) */
     public PeerDetailResponse toPeerResponse(User u){
         boolean deactivated = (u.getDeactivatedAt()!=null);
         int typeId = Optional.ofNullable(u.getTypeId()).orElse(4);
         TypeText tt = toTypeText(typeId);
         List<String> tags = deactivated ? List.of() : parseTags(u.getStyleTagsJson());
-
+        String profile = deactivated ? null : validProfile(u);
+        String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
+        String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
         return PeerDetailResponse.builder()
                 .userId(u.getId())
                 .name(deactivated ? unknownUserName : u.getName())
@@ -260,8 +263,8 @@ public class UserService {
                 .gender(deactivated ? null : u.getGender())
                 .typeTitle(tt.title())
                 .typeContent(tt.content())
-                .typeImageUrl(deactivated ? unknownUserImage : imageUrlByType(typeId))
-                .typeImageUrl2(deactivated ? unknownUserImage : imageUrlByType2(typeId))
+                .typeImageUrl(img1)
+                .typeImageUrl2(img2)
                 .styleSummary(deactivated ? null : u.getStyleSummary())
                 .recommendedPartner(deactivated ? null : u.getStyleRecommendedPartner())
                 .tags(tags)

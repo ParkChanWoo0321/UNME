@@ -1,3 +1,4 @@
+// com/example/uni/common/config/SecurityConfig.java
 package com.example.uni.common.config;
 
 import com.example.uni.auth.JwtAuthFilter;
@@ -48,6 +49,7 @@ public class SecurityConfig {
                                 "/admin/type-images/**",
                                 "/ws/**",
                                 "/files/**",
+                                "/api/files/**",
                                 "/error",
                                 "/favicon.ico",
                                 "/actuator/**",
