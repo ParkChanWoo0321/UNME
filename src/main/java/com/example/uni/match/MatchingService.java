@@ -28,6 +28,7 @@ public class MatchingService {
     private final UserRepository userRepository;
     private final UserCandidateRepository userCandidateRepository;
     private final SignalRepository signalRepository;
+    private final SignalLogRepository signalLogRepository;
     private final ChatRoomService chatRoomService;
     private final RealtimeNotifier notifier;
     private final AfterCommitExecutor afterCommit;
@@ -117,6 +118,11 @@ public class MatchingService {
             if (me.getSignalCredits() < 1) throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
             me.setSignalCredits(me.getSignalCredits() - 1);
             s = signalRepository.save(Signal.builder().sender(me).receiver(target).status(Signal.Status.SENT).build());
+            signalLogRepository.save(SignalLog.builder()
+                    .senderId(me.getId())
+                    .receiverId(target.getId())
+                    .receiverDepartment(target.getDepartment())
+                    .build());
             String message = "새로운 신호가 있어요!";
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("type", "SENT");
@@ -132,6 +138,11 @@ public class MatchingService {
                 s.setStatus(Signal.Status.SENT);
                 s.setReceiverDeletedAt(null);
                 signalRepository.save(s);
+                signalLogRepository.save(SignalLog.builder()
+                        .senderId(me.getId())
+                        .receiverId(target.getId())
+                        .receiverDepartment(target.getDepartment())
+                        .build());
                 String message = "새로운 신호가 있어요!";
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("type", "SENT");
@@ -280,7 +291,7 @@ public class MatchingService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> rankDepartments(int limit) {
-        List<Object[]> rows = signalRepository.countReceivedByDepartment(Signal.Status.SENT);
+        List<Object[]> rows = signalLogRepository.countByReceiverDepartment();
         List<Map<String, Object>> out = new ArrayList<>();
         int rank = 1;
         for (Object[] r : rows) {
