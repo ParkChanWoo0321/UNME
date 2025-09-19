@@ -27,6 +27,9 @@ public class FileUploadController {
     @Value("${app.api-prefix:/api}")
     private String apiPrefix;
 
+    @Value("${app.public-base-url:}")
+    private String publicBaseUrl;
+
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String,Object>> upload(
             @AuthenticationPrincipal String principal,
@@ -46,9 +49,16 @@ public class FileUploadController {
         Path target = dir.resolve(filename);
         Files.write(target, file.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        String prefix = apiPrefix.endsWith("/") ? apiPrefix.substring(0, apiPrefix.length() - 1) : apiPrefix;
-        String path = prefix + "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename;
+        String prefix = apiPrefix == null ? "" : apiPrefix.trim();
+        if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
+        String rel = (prefix + "/files/profile-images/" + (uid != null ? uid + "/" : "") + filename).replaceAll("//+", "/");
 
-        return ResponseEntity.ok(Map.of("url", path));
+        String base = publicBaseUrl == null ? "" : publicBaseUrl.trim();
+        if (!base.isEmpty()) {
+            base = base.replaceAll("/+$", "");
+            return ResponseEntity.ok(Map.of("url", base + rel));
+        } else {
+            return ResponseEntity.ok(Map.of("url", rel));
+        }
     }
 }
