@@ -15,12 +15,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByDeactivatedAtIsNull();
 
     @Query("""
-           select upper(trim(u.egenType)), count(u)
+           select u.egenType
            from User u
            where u.deactivatedAt is null
              and u.egenType is not null
-             and trim(u.egenType) <> ''
-           group by upper(trim(u.egenType))
            """)
-    List<Object[]> countActiveByEgenType();
+    List<String> findActiveEgenTypes();
 }

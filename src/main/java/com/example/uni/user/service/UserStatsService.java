@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.Normalizer;
 import java.util.*;
 
 @Service
@@ -16,19 +17,24 @@ public class UserStatsService {
     @Transactional(readOnly = true)
     public Map<String, Object> egenTeto() {
         long total = userRepository.countByDeactivatedAtIsNull();
-        Map<String, Long> map = new HashMap<>();
-        for (Object[] r : userRepository.countActiveByEgenType()) {
-            String type = ((String) r[0]).trim().toUpperCase();
-            long cnt = ((Number) r[1]).longValue();
-            map.put(type, cnt);
+        long egen = 0, teto = 0;
+        for (String raw : userRepository.findActiveEgenTypes()) {
+            String key = normalize(raw);
+            if ("EGEN".equals(key)) egen++;
+            else if ("TETO".equals(key)) teto++;
         }
-        long egen = map.getOrDefault("EGEN", 0L);
-        long teto = map.getOrDefault("TETO", 0L);
         return Map.of(
                 "total", total,
                 "egen", Map.of("count", egen, "pct", pct(egen, total)),
                 "teto", Map.of("count", teto, "pct", pct(teto, total))
         );
+    }
+
+    private String normalize(String s) {
+        if (s == null) return "";
+        String n = Normalizer.normalize(s, Normalizer.Form.NFKC);
+        n = n.replaceAll("[\\p{Z}\\s_\\-]+", "");
+        return n.toUpperCase(Locale.ROOT);
     }
 
     private double pct(long cnt, long total) {
