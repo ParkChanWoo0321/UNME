@@ -1,10 +1,9 @@
-// com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
 import com.example.uni.chat.ChatRoomService;
 import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
-import com.example.uni.match.Signal;                 // ★ 추가
+import com.example.uni.match.Signal;
 import com.example.uni.match.SignalRepository;
 import com.example.uni.user.ai.TextGenClient;
 import com.example.uni.user.domain.User;
@@ -151,6 +150,11 @@ public class UserService {
     @Transactional
     public User completeProfile(Long userId, UserOnboardingRequest req) {
         User u = getActive(userId);
+
+        // 변경 감지용 이전값
+        String prevName = u.getName();
+        Integer prevTypeId = u.getTypeId();
+
         if (req.getName() != null) {
             userRepository.findByNameIgnoreCase(req.getName()).ifPresent(other -> {
                 if (!Objects.equals(other.getId(), userId)) throw new ApiException(ErrorCode.CONFLICT);
@@ -195,7 +199,24 @@ public class UserService {
         u.setProfileComplete(true);
         if (u.getMatchCredits() <= 0) u.setMatchCredits(3);
         if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
-        return userRepository.save(u);
+
+        User saved = userRepository.save(u);
+
+        // ★ 이름 변경 시 채팅방/목록 동기화
+        if (req.getName() != null && !Objects.equals(prevName, req.getName())) {
+            chatRoomService.updatePeerName(saved.getId(), saved.getName());
+        }
+
+        // ★ 타입 변경 시(프로필 이미지가 비어있다면) 기본 이미지가 바뀌므로 아바타 재계산 후 동기화
+        if (!Objects.equals(prevTypeId, saved.getTypeId())) {
+            String profile = validProfile(saved);
+            if (profile == null || profile.isBlank()) {
+                String fallback = imageUrlByType2(Optional.ofNullable(saved.getTypeId()).orElse(4));
+                chatRoomService.updatePeerAvatar(saved.getId(), fallback);
+            }
+        }
+
+        return saved;
     }
 
     @Transactional
@@ -212,13 +233,20 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    // ★ 상대/절대 URL 모두 받아 절대 URL로 저장
+    // ★ 상대/절대 URL 모두 받아 절대 URL로 저장 + 채팅방/목록 캐시 즉시 반영
     @Transactional
     public User updateProfileImageUrl(Long userId, String url) {
         User u = getActive(userId);
         String v = normalizeAbsoluteUrl(url);
         u.setProfileImageUrl(v);
-        return userRepository.save(u);
+        User saved = userRepository.save(u);
+
+        String avatar = (v != null && !v.isBlank())
+                ? v
+                : imageUrlByType2(Optional.ofNullable(saved.getTypeId()).orElse(4));
+        chatRoomService.updatePeerAvatar(saved.getId(), avatar);
+
+        return saved;
     }
 
     // ====== 회원탈퇴: 신호 일괄 정리 + 파이어스토어 마스킹 ======
@@ -231,7 +259,7 @@ public class UserService {
         me.setDeactivatedAt(LocalDateTime.now());
         userRepository.save(me);
 
-        // 대기중(SENT) 신호 정리 (레포지토리 파라미터화된 메서드 사용)
+        // ★ 레포지토리의 파라미터 없는 bulk-update 메서드 사용
         signalRepository.declineAllIncomingFor(
                 me, Signal.Status.DECLINED, Signal.Status.SENT);
         signalRepository.declineAllOutgoingFrom(
