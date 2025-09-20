@@ -44,21 +44,19 @@ public class MatchingService {
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
 
-    // 학과 → type4 인덱스(1~54)
     private static final Map<String, Integer> DEPT_TYPE4_INDEX = new LinkedHashMap<>();
-    // 정규화된 학과명(소문자+공백제거) → 인덱스
     private static final Map<String, Integer> DEPT_TYPE4_INDEX_NORM = new HashMap<>();
 
     static {
-        DEPT_TYPE4_INDEX.put("항공교통물류학과", 1); //
-        DEPT_TYPE4_INDEX.put("항공운항학과", 2); //
+        DEPT_TYPE4_INDEX.put("항공교통물류학과", 1);
+        DEPT_TYPE4_INDEX.put("항공운항학과", 2);
         DEPT_TYPE4_INDEX.put("헬리콥터조종학과", 3);
-        DEPT_TYPE4_INDEX.put("항공정비학과", 4); //
-        DEPT_TYPE4_INDEX.put("항공보안학과", 5); //
+        DEPT_TYPE4_INDEX.put("항공정비학과", 4);
+        DEPT_TYPE4_INDEX.put("항공보안학과", 5);
         DEPT_TYPE4_INDEX.put("항공기계공학과", 6);
-        DEPT_TYPE4_INDEX.put("항공전자공학과", 7); //
-        DEPT_TYPE4_INDEX.put("무인항공기학과", 8); //
-        DEPT_TYPE4_INDEX.put("항공산업공학과", 9); //
+        DEPT_TYPE4_INDEX.put("항공전자공학과", 7);
+        DEPT_TYPE4_INDEX.put("무인항공기학과", 8);
+        DEPT_TYPE4_INDEX.put("항공산업공학과", 9);
         DEPT_TYPE4_INDEX.put("신소재화학공학과", 10);
         DEPT_TYPE4_INDEX.put("환경·토목·건축학과", 11);
         DEPT_TYPE4_INDEX.put("항공AI소프트웨어공학과", 12);
@@ -69,24 +67,24 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("호텔카지노관광학과", 17);
         DEPT_TYPE4_INDEX.put("문화재보존학과", 18);
         DEPT_TYPE4_INDEX.put("미디어문예창작학과", 19);
-        DEPT_TYPE4_INDEX.put("실용음악과", 20); //
-        DEPT_TYPE4_INDEX.put("영어영상학과", 21);
+        DEPT_TYPE4_INDEX.put("실용음악과", 20);
+        DEPT_TYPE4_INDEX.put("영화영상학과", 21);
         DEPT_TYPE4_INDEX.put("사회복지학과", 22);
-        DEPT_TYPE4_INDEX.put("간호학과", 23); //
-        DEPT_TYPE4_INDEX.put("물리치료학과", 24); //
+        DEPT_TYPE4_INDEX.put("간호학과", 23);
+        DEPT_TYPE4_INDEX.put("물리치료학과", 24);
         DEPT_TYPE4_INDEX.put("작업치료학과", 25);
         DEPT_TYPE4_INDEX.put("방사선학과", 26);
-        DEPT_TYPE4_INDEX.put("치위생학과", 27); //
-        DEPT_TYPE4_INDEX.put("의료재활학과", 28); //
-        DEPT_TYPE4_INDEX.put("수산생명의학과", 29); //
+        DEPT_TYPE4_INDEX.put("치위생학과", 27);
+        DEPT_TYPE4_INDEX.put("의료재활학과", 28);
+        DEPT_TYPE4_INDEX.put("수산생명의학과", 29);
         DEPT_TYPE4_INDEX.put("영상애니메이션학과", 30);
-        DEPT_TYPE4_INDEX.put("공간디자인학과", 31); //
+        DEPT_TYPE4_INDEX.put("공간디자인학과", 31);
         DEPT_TYPE4_INDEX.put("산업디자인학과", 32);
-        DEPT_TYPE4_INDEX.put("시각디자인학과", 33); //
+        DEPT_TYPE4_INDEX.put("시각디자인학과", 33);
         DEPT_TYPE4_INDEX.put("해양경찰학과", 34);
-        DEPT_TYPE4_INDEX.put("경호비서학과", 35); //
-        DEPT_TYPE4_INDEX.put("레저해양스포츠학과", 36); //
-        DEPT_TYPE4_INDEX.put("자유전공학과", 37); //
+        DEPT_TYPE4_INDEX.put("경호비서학과", 35);
+        DEPT_TYPE4_INDEX.put("레저해양스포츠학과", 36);
+        DEPT_TYPE4_INDEX.put("자유전공학과", 37);
         DEPT_TYPE4_INDEX.put("인문사회전공자율학과", 38);
         DEPT_TYPE4_INDEX.put("공학전공자율학과", 39);
         DEPT_TYPE4_INDEX.put("자연과학전공자율학과", 40);
@@ -95,7 +93,7 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("항공서비스경영학과", 43);
         DEPT_TYPE4_INDEX.put("모빌리티융합디자인학과", 44);
         DEPT_TYPE4_INDEX.put("디지털융합학과(성인학습자)", 45);
-        DEPT_TYPE4_INDEX.put("항공소프트웨어공학과", 46); //
+        DEPT_TYPE4_INDEX.put("항공소프트웨어공학과", 46);
         DEPT_TYPE4_INDEX.put("공항행정학과", 47);
         DEPT_TYPE4_INDEX.put("항공컴퓨터학과", 48);
         DEPT_TYPE4_INDEX.put("식품공학과", 49);
@@ -103,9 +101,7 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("전기전자공학과", 51);
         DEPT_TYPE4_INDEX.put("안전보건학과", 52);
         DEPT_TYPE4_INDEX.put("뷰티바이오산업학과", 53);
-        DEPT_TYPE4_INDEX.put("패션디자인학과", 54); //
-
-        // 정규화 맵 채우기
+        DEPT_TYPE4_INDEX.put("패션디자인학과", 54);
         DEPT_TYPE4_INDEX.forEach((k, v) -> DEPT_TYPE4_INDEX_NORM.put(normDept(k), v));
     }
 
@@ -118,7 +114,6 @@ public class MatchingService {
         return (v < 1) ? 1 : Math.min(v, 54);
     }
 
-    /** 과명 → type4 인덱스: 1) 수동매핑 2) 정규화 매핑 3) 해시 분배(1~54) */
     private int type4IndexFor(String dept) {
         if (dept != null) {
             Integer direct = DEPT_TYPE4_INDEX.get(dept);
@@ -134,14 +129,59 @@ public class MatchingService {
     @Transactional(readOnly = true)
     public Map<String, Object> previousMatches(Long meId) {
         User me = userRepository.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
-        List<Map<String, Object>> list = new ArrayList<>();
+        List<Map<String, Object>> raw = new ArrayList<>();
         try {
             if (me.getLastMatchJson() != null && !me.getLastMatchJson().isBlank()) {
-                list = om.readValue(me.getLastMatchJson(), new TypeReference<>() {});
+                raw = om.readValue(me.getLastMatchJson(), new TypeReference<>() {});
             }
         } catch (Exception ignore) {}
-        for (Map<String, Object> c : list) addClientAliases(c);
-        return Map.of("candidates", list);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> c : raw) {
+            Object idObj = c.getOrDefault("userId", c.get("id"));
+            Long pid = null;
+            if (idObj instanceof Number n) pid = n.longValue();
+            else if (idObj instanceof String s && !s.isBlank()) try { pid = Long.valueOf(s.trim()); } catch (Exception ignore) {}
+            if (pid == null) {
+                addClientAliases(c);
+                out.add(c);
+                continue;
+            }
+            User peer = userRepository.findById(pid).orElse(null);
+            if (peer == null || peer.getDeactivatedAt() != null) {
+                Map<String, Object> masked = new LinkedHashMap<>();
+                masked.put("userId", pid);
+                masked.put("name", unknownUserName);
+                masked.put("department", null);
+                masked.put("introduce", null);
+                masked.put("typeImageUrl", unknownUserImage);
+                masked.put("typeImageUrl2", unknownUserImage);
+                masked.put("typeImageUrl3", unknownUserImage);
+                masked.put("avatarUrl", unknownUserImage);
+                masked.put("profileImageUrl", unknownUserImage);
+                addClientAliases(masked);
+                out.add(masked);
+            } else {
+                int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
+                String profile = peer.getProfileImageUrl();
+                boolean hasProfile = profile != null && !profile.trim().isEmpty();
+                String img1 = hasProfile ? profile : userService.resolveTypeImage(typeId);
+                String img2 = hasProfile ? profile : userService.resolveTypeImage2(typeId);
+                String img3 = hasProfile ? profile : userService.resolveTypeImage3(typeId);
+                Map<String, Object> safe = new LinkedHashMap<>(c);
+                safe.put("userId", peer.getId());
+                safe.put("name", peer.getName());
+                safe.put("department", peer.getDepartment());
+                safe.put("introduce", peer.getIntroduce());
+                safe.put("typeImageUrl", img1);
+                safe.put("typeImageUrl2", img2);
+                safe.put("typeImageUrl3", img3);
+                safe.put("avatarUrl", img1);
+                safe.put("profileImageUrl", img1);
+                addClientAliases(safe);
+                out.add(safe);
+            }
+        }
+        return Map.of("candidates", out);
     }
 
     @Transactional(readOnly = true)
@@ -161,15 +201,16 @@ public class MatchingService {
         if (me.getMatchCredits() < 1) throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
 
         Gender opposite = (me.getGender() == Gender.MALE) ? Gender.FEMALE : Gender.MALE;
-        var pool = userCandidateRepository.findCandidates(opposite, me.getDepartment(), me.getId());
+        var pool = new ArrayList<>(userCandidateRepository.findCandidates(opposite, me.getDepartment(), me.getId()));
+        Collections.shuffle(pool);
 
         Set<Long> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
 
         List<Map<String, Object>> candidates = new ArrayList<>();
-        Collections.shuffle(pool);
         for (User u : pool) {
             if (candidates.size() == 3) break;
+            if (u.getDeactivatedAt() != null) continue;
             if (alreadySignaled.contains(u.getId())) continue;
             boolean hasRoom = chatRoomService.existsBetween(me.getId(), u.getId());
             if (hasRoom) continue;
@@ -200,7 +241,12 @@ public class MatchingService {
         User me = userRepository.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         User target = userRepository.findById(targetId).orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         if (me.getDeactivatedAt() != null || target.getDeactivatedAt() != null) throw new ApiException(ErrorCode.FORBIDDEN);
-        if (Objects.equals(me.getDepartment(), target.getDepartment())) throw new ApiException(ErrorCode.VALIDATION_ERROR);
+
+        if (me.getDepartment() != null && target.getDepartment() != null
+                && me.getDepartment().equals(target.getDepartment())) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR);
+        }
+
         if (me.getGender() == target.getGender()) throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (chatRoomService.existsBetween(me.getId(), target.getId())) throw new ApiException(ErrorCode.CONFLICT);
 
@@ -266,10 +312,14 @@ public class MatchingService {
         if (deactivated) {
             toCard.put("typeImageUrl2", unknownUserImage);
             toCard.put("typeImageUrl3", unknownUserImage);
+            toCard.put("avatarUrl", unknownUserImage);
+            toCard.put("profileImageUrl", unknownUserImage);
         } else {
             String profile = r.getProfileImageUrl();
             String img3 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage3(typeId);
             toCard.put("typeImageUrl3", img3);
+            toCard.put("avatarUrl", img3);
+            toCard.put("profileImageUrl", img3);
         }
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "DECLINED");
@@ -345,16 +395,22 @@ public class MatchingService {
             if (deactivated) {
                 toCard.put("typeImageUrl2", unknownUserImage);
                 toCard.put("typeImageUrl3", unknownUserImage);
+                toCard.put("avatarUrl", unknownUserImage);
+                toCard.put("profileImageUrl", unknownUserImage);
                 message = "탈퇴한 사용자입니다.";
             } else if (s.getStatus() == Signal.Status.DECLINED) {
                 String profile = r.getProfileImageUrl();
                 String img3 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage3(typeId);
                 toCard.put("typeImageUrl3", img3);
+                toCard.put("avatarUrl", img3);
+                toCard.put("profileImageUrl", img3);
                 message = "거절하셨습니다.";
             } else {
                 String profile = r.getProfileImageUrl();
                 String img2 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage2(typeId);
                 toCard.put("typeImageUrl2", img2);
+                toCard.put("avatarUrl", img2);
+                toCard.put("profileImageUrl", img2);
                 message = "성공적으로 신호를 보냈어요!";
             }
             Map<String, Object> row = new LinkedHashMap<>();
@@ -435,18 +491,20 @@ public class MatchingService {
         card.put("name", deactivated ? unknownUserName : u.getName());
         card.put("department", deactivated ? null : u.getDepartment());
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
+        String avatar;
         if (deactivated) {
             card.put("typeImageUrl2", unknownUserImage);
+            avatar = unknownUserImage;
         } else {
             String profile = u.getProfileImageUrl();
             String img2 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage2(typeId);
             card.put("typeImageUrl2", img2);
+            avatar = img2;
         }
         card.put("id", u.getId());
         card.put("targetUserId", u.getId());
         card.put("nickname", deactivated ? null : u.getName());
         card.put("major", deactivated ? null : u.getDepartment());
-        String avatar = (u.getProfileImageUrl() != null && !u.getProfileImageUrl().trim().isEmpty()) ? u.getProfileImageUrl() : null;
         card.put("avatarUrl", avatar);
         card.put("profileImageUrl", avatar);
         return card;
@@ -459,8 +517,12 @@ public class MatchingService {
         m.put("department", peer.getDepartment());
         int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
         String profile = peer.getProfileImageUrl();
-        String img2 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage2(typeId);
-        m.put("typeImageUrl2", img2);
+        boolean hasProfile = profile != null && !profile.trim().isEmpty();
+        String img = hasProfile ? profile : userService.resolveTypeImage2(typeId);
+        m.put("typeImageUrl2", img);
+        // ✅ 채팅 UI가 기대하는 필드도 반드시 채움
+        m.put("avatarUrl", img);
+        m.put("profileImageUrl", img);
         return m;
     }
 
@@ -477,10 +539,12 @@ public class MatchingService {
         card.put("department", deactivated ? null : u.getDepartment());
         card.put("introduce", deactivated ? null : u.getIntroduce());
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
+        String avatar;
         if (deactivated) {
             card.put("typeId", typeId);
             card.put("typeImageUrl", unknownUserImage);
             card.put("typeImageUrl2", unknownUserImage);
+            avatar = unknownUserImage;
         } else {
             String profile = u.getProfileImageUrl();
             String img1 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage(typeId);
@@ -488,7 +552,10 @@ public class MatchingService {
             card.put("typeId", typeId);
             card.put("typeImageUrl", img1);
             card.put("typeImageUrl2", img2);
+            avatar = img1;
         }
+        card.put("avatarUrl", avatar);
+        card.put("profileImageUrl", avatar);
         return card;
     }
 
@@ -506,10 +573,13 @@ public class MatchingService {
         card.put("targetUserId", u.getId());
         card.put("nickname", u.getName() != null ? u.getName() : u.getNickname());
         card.put("major", u.getDepartment());
-        String avatar = (profile != null && !profile.trim().isEmpty()) ? profile : null;
-        card.put("avatarUrl", avatar);
-        card.put("profileImageUrl", avatar);
+        card.put("avatarUrl", img1);
+        card.put("profileImageUrl", img1);
         return card;
+    }
+
+    private static boolean isBlankStr(Object o) {
+        return o == null || o.toString().trim().isEmpty();
     }
 
     private void addClientAliases(Map<String, Object> card) {
@@ -530,32 +600,44 @@ public class MatchingService {
         } else {
             card.putIfAbsent("profileImageUrl", avatar);
         }
+        Object av = card.get("avatarUrl");
+        Object pv = card.get("profileImageUrl");
+        if (isBlankStr(av) && isBlankStr(pv)) {
+            Object f = card.get("typeImageUrl3");
+            if (isBlankStr(f)) f = card.get("typeImageUrl2");
+            if (isBlankStr(f)) f = card.get("typeImageUrl");
+            if (!isBlankStr(f)) {
+                String v = f.toString();
+                card.put("avatarUrl", v);
+                card.put("profileImageUrl", v);
+            }
+        }
     }
 
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public java.util.List<java.util.Map<String, Object>> rankMbtiBySignals(int limit) {
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> rankMbtiBySignals(int limit) {
         var rows = signalLogRepository.countByReceiverMbti();
-        var out = new java.util.ArrayList<java.util.Map<String, Object>>();
+        var out = new ArrayList<Map<String, Object>>();
         int i = 1;
         for (Object[] r : rows) {
             if (out.size() >= limit) break;
             String mbti = (String) r[0];
             long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(java.util.Map.of("rank", i++, "mbti", mbti, "count", cnt));
+            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
         }
         return out;
     }
 
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
-    public java.util.List<java.util.Map<String, Object>> rankMbtiByMatches(int limit) {
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> rankMbtiByMatches(int limit) {
         var rows = matchLogRepository.rankMbtiByMatches();
-        var out = new java.util.ArrayList<java.util.Map<String, Object>>();
+        var out = new ArrayList<Map<String, Object>>();
         int i = 1;
         for (Object[] r : rows) {
             if (out.size() >= limit) break;
             String mbti = (String) r[0];
             long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(java.util.Map.of("rank", i++, "mbti", mbti, "count", cnt));
+            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
         }
         return out;
     }

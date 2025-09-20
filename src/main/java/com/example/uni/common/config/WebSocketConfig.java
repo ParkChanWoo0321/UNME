@@ -1,3 +1,4 @@
+// com/example/uni/common/config/WebSocketConfig.java
 package com.example.uni.common.config;
 
 import lombok.RequiredArgsConstructor;
@@ -26,8 +27,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(@NonNull StompEndpointRegistry registry) {
         String[] patterns = Arrays.stream(wsAllowedOrigins.split(","))
                 .map(String::trim)
-                .filter(s -> !s.isEmpty())   // isBlank() 대신
+                .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
+
+        if (patterns.length == 0) {
+            patterns = new String[] {"*"}; // 폴백
+        }
 
         // Native WebSocket만 사용 (SockJS 제거)
         registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns);

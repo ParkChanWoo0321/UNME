@@ -31,7 +31,6 @@ public class OAuthService {
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
 
-    /** 재로그인 시 '새로 시작' 보장: 비활성 기존 계정이 있으면 즉시 tombstone 후 새 계정 생성 */
     public Tokens loginWithAuthorizationCode(String code) {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
@@ -40,16 +39,13 @@ public class OAuthService {
         User existing = userRepository.findByKakaoId(kakaoId).orElse(null);
 
         if (existing != null && existing.getDeactivatedAt() != null) {
-            // ▶ 닉네임(unique: name) 재사용을 위해 비활성 레코드의 name 을 비움
             existing.setName(null);
-
-            // kakaoId/email tombstone 처리
             if (existing.getKakaoId() != null && !existing.getKakaoId().startsWith("deleted:")) {
                 existing.setKakaoId("deleted:" + existing.getKakaoId() + ":" + UUID.randomUUID());
             }
             existing.setEmail("deleted+" + existing.getId() + "+" + UUID.randomUUID() + "@deleted.local");
             userRepository.save(existing);
-            existing = null; // 새 레코드 생성으로 전환
+            existing = null;
         }
 
         final User user = (existing != null)
@@ -65,7 +61,7 @@ public class OAuthService {
         );
 
         Long uid = user.getId();
-        String access  = jwtProvider.generateAccess(String.valueOf(uid));
+        String access = jwtProvider.generateAccess(String.valueOf(uid));
         String refresh = jwtProvider.generateRefresh(String.valueOf(uid));
         return new Tokens(access, refresh);
     }
@@ -91,31 +87,27 @@ public class OAuthService {
         return jwtProvider.generateRefresh(userId);
     }
 
-    /** 카카오 언링크 + 소프트탈퇴 + 식별자(tombstone) 해제 + 채팅방 마스킹 */
     @Transactional
     public void unlinkUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalStateException("User not found"));
 
-        // 1) 외부 언링크
-        kakao.unlinkWithAdminKey(user.getKakaoId());
+        String kid = user.getKakaoId();
+        if (kid != null && !kid.startsWith("deleted:")) {
+            kakao.unlinkWithAdminKey(kid);
+        }
 
-        // 2) 소프트탈퇴 플래그
         user.setDeactivatedAt(LocalDateTime.now());
-
-        // ▶ 닉네임(unique: name) 재사용을 위해 name 을 비움
         user.setName(null);
 
-        // 3) tombstone: kakaoId/email 유니크 충돌 방지
         String suffix = "-" + user.getId() + "-" + UUID.randomUUID();
-        if (user.getKakaoId() != null && !user.getKakaoId().startsWith("deleted:")) {
-            user.setKakaoId("deleted:" + user.getKakaoId() + suffix);
+        if (kid != null && !kid.startsWith("deleted:")) {
+            user.setKakaoId("deleted:" + kid + suffix);
         }
         user.setEmail("deleted+" + user.getId() + "+" + UUID.randomUUID() + "@deleted.local");
+        user.setProfileImageUrl(null);
 
         userRepository.save(user);
-
-        // 4) 채팅방 peers 마스킹
         chatRoomService.markUserLeft(userId, unknownUserName, unknownUserImage);
     }
 

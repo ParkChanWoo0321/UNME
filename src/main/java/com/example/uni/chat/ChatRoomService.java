@@ -1,4 +1,3 @@
-// com/example/uni/chat/ChatRoomService.java
 package com.example.uni.chat;
 
 import com.google.cloud.Timestamp;
@@ -83,6 +82,33 @@ public class ChatRoomService {
             Map<String, Object> peersOut = (Map<String, Object>) snap.get("peers");
             if (peersOut == null) peersOut = (peers != null ? peers : Map.of());
 
+            // ✅ 자가치유: avatarUrl/profileImageUrl 비어있으면 typeImageUrl2나 typeImageUrl로 채움
+            boolean patched = false;
+            for (Map.Entry<String, Object> e : new ArrayList<>(peersOut.entrySet())) {
+                if (!(e.getValue() instanceof Map)) continue;
+                @SuppressWarnings("unchecked")
+                Map<String, Object> p = (Map<String, Object>) e.getValue();
+
+                String avatar = (p.get("avatarUrl") instanceof String s) ? s : null;
+                String prof   = (p.get("profileImageUrl") instanceof String s) ? s : null;
+                String t2     = (p.get("typeImageUrl2") instanceof String s) ? s : null;
+                String t1     = (p.get("typeImageUrl")  instanceof String s) ? s : null;
+
+                String chosen = (avatar != null && !avatar.isBlank()) ? avatar
+                        : (prof   != null && !prof.isBlank())   ? prof
+                        : (t2     != null && !t2.isBlank())     ? t2
+                        : (t1     != null && !t1.isBlank())     ? t1
+                        : null;
+
+                if (chosen != null) {
+                    if (avatar == null || avatar.isBlank()) { p.put("avatarUrl", chosen); patched = true; }
+                    if (prof   == null || prof.isBlank())   { p.put("profileImageUrl", chosen); patched = true; }
+                }
+            }
+            if (patched) {
+                ref.update("peers", peersOut).get();
+            }
+
             // 응답: participants는 숫자 그대로 반환
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("roomId", roomId);
@@ -118,6 +144,8 @@ public class ChatRoomService {
                 updates.put("peers."+uid+".typeImageUrl", unknownImage);
                 updates.put("peers."+uid+".typeImageUrl2", unknownImage);
                 updates.put("peers."+uid+".typeImageUrl3", unknownImage);
+                updates.put("peers."+uid+".avatarUrl", unknownImage);
+                updates.put("peers."+uid+".profileImageUrl", unknownImage);
                 updates.put("peers."+uid+".status", "LEFT");
                 ref.update(updates).get();
             }

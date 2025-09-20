@@ -1,7 +1,10 @@
+// com/example/uni/common/config/StompAuthChannelInterceptor.java
 package com.example.uni.common.config;
 
 import com.example.uni.auth.JwtProvider;
 import com.example.uni.common.realtime.WsSessionRegistry;
+import com.example.uni.user.domain.User;                 // ★ 추가
+import com.example.uni.user.repo.UserRepository;        // ★ 추가
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.Message;
@@ -14,6 +17,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -21,14 +25,15 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private final JwtProvider jwtProvider;
     private final WsSessionRegistry wsSessions;
+    private final UserRepository userRepository; // ★ 추가
 
     @Override
     public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
         StompHeaderAccessor acc = StompHeaderAccessor.wrap(message);
 
         if (StompCommand.CONNECT.equals(acc.getCommand())) {
-            String raw = acc.getFirstNativeHeader("Authorization");
-            if (raw == null) raw = acc.getFirstNativeHeader("authorization");
+            String raw = Optional.ofNullable(acc.getFirstNativeHeader("Authorization"))
+                    .orElse(acc.getFirstNativeHeader("authorization"));
             if (raw == null) throw new AccessDeniedException("Missing Authorization");
             raw = raw.trim();
             if (raw.length() < 7 || !raw.regionMatches(true, 0, "Bearer ", 0, 7)) {
@@ -36,7 +41,18 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             }
 
             String jwt = raw.substring(7).trim();
-            String userId = jwtProvider.validateAccessAndGetSubject(jwt);
+            final String userId;
+            try {
+                userId = jwtProvider.validateAccessAndGetSubject(jwt);
+            } catch (RuntimeException e) {
+                throw new AccessDeniedException("Invalid or expired token", e);
+            }
+
+            // ★ 탈퇴 사용자 차단
+            User u = userRepository.findById(Long.valueOf(userId)).orElse(null);
+            if (u == null || u.getDeactivatedAt() != null) {
+                throw new AccessDeniedException("Deactivated");
+            }
 
             var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
             acc.setUser(principal);

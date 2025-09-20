@@ -69,7 +69,13 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .toList();
-        cfg.setAllowedOriginPatterns(origins);
+
+        if (origins.isEmpty()) {
+            cfg.setAllowedOriginPatterns(List.of("*")); // 폴백
+        } else {
+            cfg.setAllowedOriginPatterns(origins);
+        }
+
         cfg.setAllowCredentials(true);
         cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","PATCH","OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));

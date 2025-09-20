@@ -1,8 +1,11 @@
 // com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
+import com.example.uni.chat.ChatRoomService;
 import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
+import com.example.uni.match.Signal;                 // ★ 추가
+import com.example.uni.match.SignalRepository;
 import com.example.uni.user.ai.TextGenClient;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.dto.DatingStyleSummary;
@@ -18,6 +21,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -29,10 +33,22 @@ public class UserService {
     private final ObjectMapper om;
     private final Environment env;
 
+    // 탈퇴 시 Firestore 마스킹/신호 정리
+    private final ChatRoomService chatRoomService;
+    private final SignalRepository signalRepository;
+
     @Value("${app.unknown-user.name:알 수 없는 유저}")
     private String unknownUserName;
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
+
+    // 절대 URL 정규화에 사용
+    @Value("${app.public-base-url:}")
+    private String publicBaseUrl;
+    @Value("${app.api-prefix:/api}")
+    private String apiPrefix;
+    @Value("${server.servlet.context-path:}")
+    private String contextPath;
 
     private String imageUrlByType(int typeId){
         String u1 = env.getProperty("app.type-image.1", "");
@@ -46,7 +62,6 @@ public class UserService {
             default -> u4;
         };
     }
-
     private String imageUrlByType2(int typeId){
         String u1 = env.getProperty("app.type-image2.1", "");
         String u2 = env.getProperty("app.type-image2.2", "");
@@ -59,7 +74,6 @@ public class UserService {
             default -> u4;
         };
     }
-
     private String imageUrlByType3(int typeId){
         String u1 = env.getProperty("app.type-image3.1", "");
         String u2 = env.getProperty("app.type-image3.2", "");
@@ -87,13 +101,11 @@ public class UserService {
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
     }
-
     public User getActive(Long id){
         User u = get(id);
         if (u.getDeactivatedAt() != null) throw new ApiException(ErrorCode.FORBIDDEN);
         return u;
     }
-
     public boolean isNameAvailable(String name) {
         return !userRepository.existsByNameIgnoreCase(name);
     }
@@ -111,7 +123,6 @@ public class UserService {
         if (aCnt <= 4) return 3;
         return 4;
     }
-
     private static String determineEgenType(Map<String,String> answers) {
         int bCnt = 0;
         for (int i = 1; i <= 10; i++) {
@@ -120,7 +131,6 @@ public class UserService {
         }
         return bCnt >= 6 ? "EGEN" : "TETO";
     }
-
     private static String toKoEgen(String v){
         if (v == null) return null;
         String s = v.trim().toUpperCase();
@@ -128,7 +138,6 @@ public class UserService {
         if (s.equals("TETO")) return "테토";
         return null;
     }
-
     private static TypeText toTypeText(int typeId){
         return switch (typeId) {
             case 1 -> new TypeText("활발한 에너지형", "관계의 즐거움과 생기를 붙여넣는 매력의 소유자!");
@@ -156,6 +165,7 @@ public class UserService {
         }
         u.setGender(req.getGender());
         u.setMbti(req.getMbti());
+
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
@@ -163,6 +173,7 @@ public class UserService {
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
         u.setTypeId(determineTypeId(answers));
+
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -180,8 +191,9 @@ public class UserService {
             u.setDatingStyleAnswersJson("{}");
             u.setEgenType(determineEgenType(answers));
         }
+
         u.setProfileComplete(true);
-        if (u.getMatchCredits()  <= 0) u.setMatchCredits(3);
+        if (u.getMatchCredits() <= 0) u.setMatchCredits(3);
         if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
         return userRepository.save(u);
     }
@@ -200,13 +212,36 @@ public class UserService {
         return userRepository.save(u);
     }
 
+    // ★ 상대/절대 URL 모두 받아 절대 URL로 저장
     @Transactional
     public User updateProfileImageUrl(Long userId, String url) {
         User u = getActive(userId);
-        String v = url != null ? url.trim() : null;
-        u.setProfileImageUrl(v == null || v.isEmpty() ? null : v);
+        String v = normalizeAbsoluteUrl(url);
+        u.setProfileImageUrl(v);
         return userRepository.save(u);
     }
+
+    // ====== 회원탈퇴: 신호 일괄 정리 + 파이어스토어 마스킹 ======
+    @Transactional
+    public void deactivateAndCleanup(Long meId) {
+        User me = userRepository.findById(meId)
+                .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
+        if (me.getDeactivatedAt() != null) return; // idempotent
+
+        me.setDeactivatedAt(LocalDateTime.now());
+        userRepository.save(me);
+
+        // 대기중(SENT) 신호 정리 (레포지토리 파라미터화된 메서드 사용)
+        signalRepository.declineAllIncomingFor(
+                me, Signal.Status.DECLINED, Signal.Status.SENT);
+        signalRepository.declineAllOutgoingFrom(
+                me, Signal.Status.DECLINED, Signal.Status.SENT);
+
+        // 모든 방에 대해 peers 마스킹 + 상태 LEFT
+        chatRoomService.markUserLeft(me.getId(), unknownUserName, unknownUserImage);
+    }
+
+    // ====== 헬퍼 ======
     private String toInstagramUrlOrNull(String raw) {
         if (raw == null) return null;
         String v = raw.trim();
@@ -228,7 +263,6 @@ public class UserService {
             return List.of();
         }
     }
-
     private String validProfile(User u) {
         String p = u.getProfileImageUrl();
         if (p == null) return null;
@@ -303,5 +337,44 @@ public class UserService {
                 .mbti(deactivated ? null : u.getMbti())
                 .egenType(egenOut)
                 .build();
+    }
+
+    // === URL 정규화 ===
+    private String normalizeAbsoluteUrl(String raw) {
+        if (raw == null) return null;
+        String v = raw.trim();
+        if (v.isEmpty()) return null;
+
+        // 이미 절대 URL인 경우
+        if (v.startsWith("http://") || v.startsWith("https://")) return v;
+
+        // 프로토콜 생략 //host 경로
+        if (v.startsWith("//")) {
+            return "https:" + v; // 기본 https 권장
+        }
+
+        String base = (publicBaseUrl == null) ? "" : publicBaseUrl.trim().replaceAll("/+$", "");
+
+        String prefix = (apiPrefix == null ? "" : apiPrefix.trim());
+        if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
+
+        String ctx = (contextPath == null) ? "" : contextPath.trim();
+        if (!ctx.isEmpty() && !ctx.startsWith("/")) ctx = "/" + ctx;
+
+        if (v.startsWith("/")) {
+            return base.isEmpty() ? v : base + v;
+        }
+
+        if (v.startsWith("files/")) {
+            String rel = (prefix + "/" + v).replaceAll("//+", "/");
+            return base.isEmpty() ? rel : base + rel;
+        }
+        if (v.startsWith("api/")) {
+            String rel = ("/" + v).replaceAll("//+", "/");
+            return base.isEmpty() ? rel : base + rel;
+        }
+
+        String rel = (prefix + "/" + v).replaceAll("//+", "/");
+        return base.isEmpty() ? rel : base + rel;
     }
 }

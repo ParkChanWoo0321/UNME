@@ -38,10 +38,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             try {
                 String userId = jwtProvider.validateAccessAndGetSubject(token);
 
-                // 비활성 사용자 차단
                 User u = userRepository.findById(Long.valueOf(userId)).orElse(null);
                 if (u == null || u.getDeactivatedAt() != null) {
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                    // ★ 탈퇴 또는 미존재 → 즉시 차단
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN);
                     return;
                 }
 
@@ -49,7 +49,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         userId, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             } catch (Exception ignored) {
-                // 토큰 검증 실패시 인증 미설정(익명 처리)
+                // 토큰 검증 실패 → 익명으로 진행
             }
         }
         filterChain.doFilter(request, response);
