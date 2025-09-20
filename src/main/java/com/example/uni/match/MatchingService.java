@@ -53,7 +53,7 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("항공교통물류학과", 1); //
         DEPT_TYPE4_INDEX.put("항공운항학과", 2); //
         DEPT_TYPE4_INDEX.put("헬리콥터조종학과", 3);
-        DEPT_TYPE4_INDEX.put("항공정비학과", 4);
+        DEPT_TYPE4_INDEX.put("항공정비학과", 4); //
         DEPT_TYPE4_INDEX.put("항공보안학과", 5); //
         DEPT_TYPE4_INDEX.put("항공기계공학과", 6);
         DEPT_TYPE4_INDEX.put("항공전자공학과", 7); //
