@@ -97,7 +97,6 @@ public class User extends BaseTimeEntity {
     @Column(name = "egen_type", length = 10)
     private String egenType;
 
-    // ✅ 최근 매칭 결과 저장용
     @Column(name = "last_match_json", columnDefinition = "TEXT")
     private String lastMatchJson;
 

@@ -205,13 +205,12 @@ public class UserService {
         if (raw == null) return null;
         String v = raw.trim();
         if (v.isEmpty()) return null;
-        if (v.startsWith("http://") || v.startsWith("https://")) {
-            return v;
-        }
-        if (v.charAt(0) == '@') v = v.substring(1);
-        if (!v.matches("^[A-Za-z0-9._]{1,30}$")) {
-            return null;
-        }
+        if ("null".equalsIgnoreCase(v) || "undefined".equalsIgnoreCase(v)) return null;
+        v = v.replaceAll("^https?://(www\\.)?instagram\\.com/", "");
+        if (v.startsWith("@")) v = v.substring(1);
+        v = v.replaceAll("[/?].*$", "");
+        if (v.isEmpty()) return null;
+        if (!v.matches("^[A-Za-z0-9._]{1,30}$")) return null;
         return "https://www.instagram.com/" + v;
     }
 
