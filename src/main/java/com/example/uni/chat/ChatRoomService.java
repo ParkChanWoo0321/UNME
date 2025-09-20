@@ -35,10 +35,9 @@ public class ChatRoomService {
     }
 
     /**
-     * participants: [uid1, uid2] (숫자)  ← 응답은 숫자로 반환
-     * peers: { "uid1": {...}, "uid2": {...} }  // 키는 문자열 UID
-     * 문서 저장 시 participants는 문자열 배열로 저장(Security Rules용)
-     * 반환: { roomId, participants(숫자), peers, createdAt(ISO8601 UTC) }
+     * participants: ["123","456"]  // 문자열 UID 배열
+     * peers: { "123": {...상대정보}, "456": {...상대정보} }  // "내 UID" 키 아래에 "상대 정보"
+     * listCard: { "123": {...상대정보}, "456": {...상대정보} } // 채팅목록용 미러
      */
     public Map<String, Object> openRoom(List<Long> participants, Map<String, Object> peers) {
         if (participants == null || participants.size() != 2)
@@ -52,7 +51,6 @@ public class ChatRoomService {
         try {
             DocumentSnapshot snap = ref.get().get();
             if (!snap.exists()) {
-                // Firestore에는 문자열 UID로 저장
                 List<Long> sortedNum = new ArrayList<>(participants);
                 Collections.sort(sortedNum);
                 List<String> participantsStr = List.of(
@@ -61,28 +59,23 @@ public class ChatRoomService {
                 );
 
                 Map<String, Object> data = new LinkedHashMap<>();
-                data.put("participants", participantsStr); // 문자열 저장
+                data.put("participants", participantsStr);
                 data.put("peers", peers != null ? peers : Map.of());
                 data.put("pairKey", participantsStr.get(0) + "_" + participantsStr.get(1));
                 data.put("createdAt", FieldValue.serverTimestamp());
                 ref.set(data, SetOptions.merge()).get();
-
-                // 서버 타임스탬프 반영 위해 재조회
                 snap = ref.get().get();
             }
 
-            // createdAt
             Timestamp ts = snap.getTimestamp("createdAt");
             String createdAtIso = (ts != null)
                     ? Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()).toString()
                     : null;
 
-            // peers (문서에 있으면 문서 기준, 없으면 파라미터)
             @SuppressWarnings("unchecked")
             Map<String, Object> peersOut = (Map<String, Object>) snap.get("peers");
             if (peersOut == null) peersOut = (peers != null ? peers : Map.of());
 
-            // ✅ 자가치유: avatarUrl/profileImageUrl 비어있으면 typeImageUrl2/1로 채움
             boolean patched = false;
             for (Map.Entry<String, Object> e : new ArrayList<>(peersOut.entrySet())) {
                 if (!(e.getValue() instanceof Map)) continue;
@@ -109,11 +102,15 @@ public class ChatRoomService {
                 ref.update("peers", peersOut).get();
             }
 
-            // 응답: participants는 숫자 그대로 반환
+            // 채팅목록 미러 생성/동기화
+            Map<String, Object> listCard = mirrorForList(peersOut);
+            ref.update("listCard", listCard).get();
+
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("roomId", roomId);
-            resp.put("participants", List.copyOf(participants)); // 숫자
+            resp.put("participants", List.copyOf(participants)); // 숫자 반환
             resp.put("peers", peersOut);
+            resp.put("listCard", listCard);
             resp.put("createdAt", createdAtIso);
             return resp;
 
@@ -125,27 +122,45 @@ public class ChatRoomService {
         }
     }
 
-    /** 탈퇴 사용자를 포함한 모든 방의 peers를 마스킹하고 상태를 LEFT로 표시 */
+    /** 탈퇴 사용자를 포함한 모든 방의 peers/listCard를 마스킹 (항상 otherUid 쪽을 갱신) */
     public void markUserLeft(Long userId, String unknownName, String unknownImage) {
         String uid = String.valueOf(userId);
         try {
             CollectionReference col = firestore.collection("chatRooms");
-            Query query = col.whereArrayContains("participants", uid);
-            QuerySnapshot qs = query.get().get();
+            QuerySnapshot qs = col.whereArrayContains("participants", uid).get().get();
 
             for (DocumentSnapshot doc : qs.getDocuments()) {
-                DocumentReference ref = doc.getReference();
-                Map<String, Object> updates = new HashMap<>();
-                updates.put("peers."+uid+".userId", userId);
-                updates.put("peers."+uid+".name", unknownName);
-                updates.put("peers."+uid+".department", null);
-                updates.put("peers."+uid+".typeImageUrl", unknownImage);
-                updates.put("peers."+uid+".typeImageUrl2", unknownImage);
-                updates.put("peers."+uid+".typeImageUrl3", unknownImage);
-                updates.put("peers."+uid+".avatarUrl", unknownImage);
-                updates.put("peers."+uid+".profileImageUrl", unknownImage);
-                updates.put("peers."+uid+".status", "LEFT");
-                ref.update(updates).get();
+                List<String> participants = readParticipantsAsString(doc);
+                if (participants.isEmpty()) continue;
+
+                for (String otherUid : participants) {
+                    if (uid.equals(otherUid)) continue;
+                    DocumentReference ref = doc.getReference();
+                    Map<String, Object> updates = new HashMap<>();
+                    // peers (목록/방 모두 동일 반영을 위해 otherUid 아래에 기록)
+                    String base = "peers."+otherUid;
+                    updates.put(base+".userId", userId);
+                    updates.put(base+".name", unknownName);
+                    updates.put(base+".department", null);
+                    updates.put(base+".typeImageUrl", unknownImage);
+                    updates.put(base+".typeImageUrl2", unknownImage);
+                    updates.put(base+".typeImageUrl3", unknownImage);
+                    updates.put(base+".avatarUrl", unknownImage);
+                    updates.put(base+".profileImageUrl", unknownImage);
+                    updates.put(base+".status", "LEFT");
+                    // listCard 미러
+                    String lbase = "listCard."+otherUid;
+                    updates.put(lbase+".userId", userId);
+                    updates.put(lbase+".name", unknownName);
+                    updates.put(lbase+".department", null);
+                    updates.put(lbase+".typeImageUrl", unknownImage);
+                    updates.put(lbase+".typeImageUrl2", unknownImage);
+                    updates.put(lbase+".typeImageUrl3", unknownImage);
+                    updates.put(lbase+".avatarUrl", unknownImage);
+                    updates.put(lbase+".profileImageUrl", unknownImage);
+                    updates.put(lbase+".status", "LEFT");
+                    ref.update(updates).get();
+                }
             }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -155,25 +170,34 @@ public class ChatRoomService {
         }
     }
 
-    // ========= ★ 추가: 채팅방/목록 캐시 갱신 =========
-
-    /** 유저의 모든 참여 방에서 아바타(대표 이미지) 필드 갱신 */
+    /** 프사 변경 전파 – 항상 otherUid 아래에 반영 + listCard 동기화 */
     public void updatePeerAvatar(Long userId, String avatarUrl) {
+        if (avatarUrl == null || avatarUrl.isBlank()) return;
         String uid = String.valueOf(userId);
         try {
             CollectionReference col = firestore.collection("chatRooms");
-            Query query = col.whereArrayContains("participants", uid);
-            QuerySnapshot qs = query.get().get();
+            QuerySnapshot qs = col.whereArrayContains("participants", uid).get().get();
 
             for (DocumentSnapshot doc : qs.getDocuments()) {
-                DocumentReference ref = doc.getReference();
-                Map<String, Object> updates = new HashMap<>();
-                updates.put("peers." + uid + ".avatarUrl", avatarUrl);
-                updates.put("peers." + uid + ".profileImageUrl", avatarUrl);
-                // UI가 typeImageUrl2/3를 쓰는 경우도 커버
-                updates.put("peers." + uid + ".typeImageUrl2", avatarUrl);
-                updates.put("peers." + uid + ".typeImageUrl3", avatarUrl);
-                ref.update(updates).get();
+                List<String> participants = readParticipantsAsString(doc);
+                if (participants.isEmpty()) continue;
+
+                for (String otherUid : participants) {
+                    if (uid.equals(otherUid)) continue;
+                    DocumentReference ref = doc.getReference();
+                    Map<String, Object> updates = new HashMap<>();
+                    String base = "peers."+otherUid;
+                    updates.put(base+".avatarUrl", avatarUrl);
+                    updates.put(base+".profileImageUrl", avatarUrl);
+                    updates.put(base+".typeImageUrl2", avatarUrl);
+                    updates.put(base+".typeImageUrl3", avatarUrl);
+                    String lbase = "listCard."+otherUid;
+                    updates.put(lbase+".avatarUrl", avatarUrl);
+                    updates.put(lbase+".profileImageUrl", avatarUrl);
+                    updates.put(lbase+".typeImageUrl2", avatarUrl);
+                    updates.put(lbase+".typeImageUrl3", avatarUrl);
+                    ref.update(updates).get();
+                }
             }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -183,17 +207,26 @@ public class ChatRoomService {
         }
     }
 
-    /** 유저의 모든 참여 방에서 표시 이름 갱신 */
+    /** 이름 변경 전파 – 항상 otherUid 아래에 반영 + listCard 동기화 */
     public void updatePeerName(Long userId, String name) {
+        if (name == null || name.isBlank()) return;
         String uid = String.valueOf(userId);
         try {
             CollectionReference col = firestore.collection("chatRooms");
-            Query query = col.whereArrayContains("participants", uid);
-            QuerySnapshot qs = query.get().get();
+            QuerySnapshot qs = col.whereArrayContains("participants", uid).get().get();
 
             for (DocumentSnapshot doc : qs.getDocuments()) {
-                DocumentReference ref = doc.getReference();
-                ref.update("peers." + uid + ".name", name).get();
+                List<String> participants = readParticipantsAsString(doc);
+                if (participants.isEmpty()) continue;
+
+                for (String otherUid : participants) {
+                    if (uid.equals(otherUid)) continue;
+                    DocumentReference ref = doc.getReference();
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("peers."+otherUid+".name", name);
+                    updates.put("listCard."+otherUid+".name", name);
+                    ref.update(updates).get();
+                }
             }
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
@@ -201,5 +234,33 @@ public class ChatRoomService {
         } catch (ExecutionException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // ---- helpers ----
+
+    @SuppressWarnings("unchecked")
+    private List<String> readParticipantsAsString(DocumentSnapshot doc) {
+        Object raw = doc.get("participants");
+        if (!(raw instanceof List<?> list)) return List.of();
+        List<String> out = new ArrayList<>(list.size());
+        for (Object o : list) {
+            if (o == null) continue;
+            if (o instanceof String s) out.add(s);
+            else if (o instanceof Number n) out.add(String.valueOf(n.longValue()));
+            else out.add(String.valueOf(o));
+        }
+        // 빈값 제거
+        out.removeIf(s -> s == null || s.isBlank());
+        return out;
+    }
+
+    private Map<String, Object> mirrorForList(Map<String, Object> peersOut) {
+        Map<String, Object> listCard = new HashMap<>();
+        for (Map.Entry<String, Object> e : peersOut.entrySet()) {
+            if (e.getValue() instanceof Map<?,?> m) {
+                listCard.put(e.getKey(), new HashMap<>(m)); // 얕은 복제
+            }
+        }
+        return listCard;
     }
 }

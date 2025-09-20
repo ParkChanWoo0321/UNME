@@ -32,7 +32,6 @@ public class UserService {
     private final ObjectMapper om;
     private final Environment env;
 
-    // 탈퇴 시 Firestore 마스킹/신호 정리
     private final ChatRoomService chatRoomService;
     private final SignalRepository signalRepository;
 
@@ -41,7 +40,6 @@ public class UserService {
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
 
-    // 절대 URL 정규화에 사용
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
     @Value("${app.api-prefix:/api}")
@@ -89,7 +87,6 @@ public class UserService {
     public String resolveTypeImage(int typeId)  { return imageUrlByType(typeId); }
     public String resolveTypeImage2(int typeId) { return imageUrlByType2(typeId); }
     public String resolveTypeImage3(int typeId) { return imageUrlByType3(typeId); }
-
     public String resolveTypeImage4(int idx) {
         String url = env.getProperty("app.type-image4." + idx, "");
         if (url == null || url.isBlank()) url = env.getProperty("app.type-image4.default", "");
@@ -151,7 +148,6 @@ public class UserService {
     public User completeProfile(Long userId, UserOnboardingRequest req) {
         User u = getActive(userId);
 
-        // 변경 감지용 이전값
         String prevName = u.getName();
         Integer prevTypeId = u.getTypeId();
 
@@ -202,17 +198,16 @@ public class UserService {
 
         User saved = userRepository.save(u);
 
-        // ★ 이름 변경 시 채팅방/목록 동기화
+        // 이름 변경 → Firestore 동기화
         if (req.getName() != null && !Objects.equals(prevName, req.getName())) {
-            chatRoomService.updatePeerName(saved.getId(), saved.getName());
+            try { chatRoomService.updatePeerName(saved.getId(), saved.getName()); } catch (RuntimeException ignore) {}
         }
-
-        // ★ 타입 변경 시(프로필 이미지가 비어있다면) 기본 이미지가 바뀌므로 아바타 재계산 후 동기화
+        // 타입 변경 + 수동 프사 없음 → 기본 이미지 변경 반영
         if (!Objects.equals(prevTypeId, saved.getTypeId())) {
             String profile = validProfile(saved);
             if (profile == null || profile.isBlank()) {
                 String fallback = imageUrlByType2(Optional.ofNullable(saved.getTypeId()).orElse(4));
-                chatRoomService.updatePeerAvatar(saved.getId(), fallback);
+                try { chatRoomService.updatePeerAvatar(saved.getId(), fallback); } catch (RuntimeException ignore) {}
             }
         }
 
@@ -233,7 +228,7 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    // ★ 상대/절대 URL 모두 받아 절대 URL로 저장 + 채팅방/목록 캐시 즉시 반영
+    // 상대/절대 URL 모두 받아 절대 URL로 저장 + Firestore 캐시 즉시 반영
     @Transactional
     public User updateProfileImageUrl(Long userId, String url) {
         User u = getActive(userId);
@@ -244,32 +239,30 @@ public class UserService {
         String avatar = (v != null && !v.isBlank())
                 ? v
                 : imageUrlByType2(Optional.ofNullable(saved.getTypeId()).orElse(4));
-        chatRoomService.updatePeerAvatar(saved.getId(), avatar);
+        try { chatRoomService.updatePeerAvatar(saved.getId(), avatar); } catch (RuntimeException ignore) {}
 
         return saved;
     }
 
-    // ====== 회원탈퇴: 신호 일괄 정리 + 파이어스토어 마스킹 ======
+    // 회원탈퇴: 대기중 신호 일괄 정리 + Firestore 마스킹
     @Transactional
     public void deactivateAndCleanup(Long meId) {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
-        if (me.getDeactivatedAt() != null) return; // idempotent
+        if (me.getDeactivatedAt() != null) return;
 
         me.setDeactivatedAt(LocalDateTime.now());
         userRepository.save(me);
 
-        // ★ 레포지토리의 파라미터 없는 bulk-update 메서드 사용
-        signalRepository.declineAllIncomingFor(
-                me, Signal.Status.DECLINED, Signal.Status.SENT);
-        signalRepository.declineAllOutgoingFrom(
-                me, Signal.Status.DECLINED, Signal.Status.SENT);
+        // 파라미터화된 bulk update 메서드 사용 (레포지토리 구현 필요)
+        signalRepository.declineAllIncomingFor(me, Signal.Status.DECLINED, Signal.Status.SENT);
+        signalRepository.declineAllOutgoingFrom(me, Signal.Status.DECLINED, Signal.Status.SENT);
 
-        // 모든 방에 대해 peers 마스킹 + 상태 LEFT
         chatRoomService.markUserLeft(me.getId(), unknownUserName, unknownUserImage);
     }
 
-    // ====== 헬퍼 ======
+    // ---- helpers ----
+
     private String toInstagramUrlOrNull(String raw) {
         if (raw == null) return null;
         String v = raw.trim();
@@ -373,25 +366,17 @@ public class UserService {
         String v = raw.trim();
         if (v.isEmpty()) return null;
 
-        // 이미 절대 URL인 경우
         if (v.startsWith("http://") || v.startsWith("https://")) return v;
-
-        // 프로토콜 생략 //host 경로
-        if (v.startsWith("//")) {
-            return "https:" + v; // 기본 https 권장
-        }
+        if (v.startsWith("//")) return "https:" + v;
 
         String base = (publicBaseUrl == null) ? "" : publicBaseUrl.trim().replaceAll("/+$", "");
-
         String prefix = (apiPrefix == null ? "" : apiPrefix.trim());
         if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
 
         String ctx = (contextPath == null) ? "" : contextPath.trim();
         if (!ctx.isEmpty() && !ctx.startsWith("/")) ctx = "/" + ctx;
 
-        if (v.startsWith("/")) {
-            return base.isEmpty() ? v : base + v;
-        }
+        if (v.startsWith("/")) return base.isEmpty() ? v : base + v;
 
         if (v.startsWith("files/")) {
             String rel = (prefix + "/" + v).replaceAll("//+", "/");
