@@ -1,3 +1,4 @@
+// com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
 import com.example.uni.common.exception.ApiException;
@@ -106,13 +107,12 @@ public class UserService {
     }
 
     private static String determineEgenType(Map<String,String> answers) {
-        String[] egenBy = {"a","a","a","a","a","b","a","b","a","a"};
-        int score = 0;
+        int bCnt = 0;
         for (int i = 1; i <= 10; i++) {
             String sel = Optional.ofNullable(answers.get("q"+i)).orElse("").trim().toLowerCase();
-            if (sel.equals(egenBy[i-1])) score++;
+            if ("b".equals(sel)) bCnt++;
         }
-        return score >= 6 ? "EGEN" : "TETO";
+        return bCnt >= 6 ? "EGEN" : "TETO";
     }
 
     private static String toKoEgen(String v){
@@ -165,7 +165,9 @@ public class UserService {
                 u.setStyleSummary(ds.getFeature());
                 u.setStyleRecommendedPartner(ds.getRecommendedPartner());
                 u.setStyleTagsJson(om.writeValueAsString(ds.getTags()));
-                u.setEgenType(determineEgenType(answers));
+                String egen = Optional.ofNullable(ds.getEgenType()).orElse("").trim().toUpperCase(java.util.Locale.ROOT);
+                if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = determineEgenType(answers);
+                u.setEgenType(egen);
             }
             u.setDatingStyleAnswersJson(newJson);
         } catch (Exception e) {

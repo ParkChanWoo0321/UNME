@@ -61,7 +61,11 @@ public class GptTextGenClient implements TextGenClient {
                 "model", model,
                 "messages", new Object[]{
                         Map.of("role","system","content",
-                                "너는 데이팅 성향 결과를 한국어로 생성한다. 반드시 JSON만 출력해. 코드블록/설명/개행/이모지 금지. JSON schema: {\"feature\":\"문장 1~2개, 180~220자\", \"recommendedPartner\":\"문장 1개, 110~150자\", \"tags\":[\"단어\",\"단어\",\"단어\"]} tags는 해시 없이 3개의 핵심 단어, 중복 금지."),
+                                "너는 데이팅 성향 결과를 한국어로 생성한다. 반드시 JSON만 출력해. 코드블록/설명/개행/이모지 금지. " +
+                                        "A는 활동적/외향/리드/즉흥/직접, B는 조용/내향/경청/계획/섬세 의미로 본다. " +
+                                        "B 경향이 많으면 egenType=EGEN, A 경향이 많으면 egenType=TETO. 애매하면 q1,q4,q8,q10을 우선 고려한다. " +
+                                        "JSON schema: {\"feature\":\"문장 1~2개, 180~220자\",\"recommendedPartner\":\"문장 1개, 110~150자\",\"tags\":[\"단어\",\"단어\",\"단어\"],\"egenType\":\"EGEN|TETO\"} " +
+                                        "tags는 해시 없이 3개의 핵심 단어, 중복 금지. egenType은 대문자 EGEN 또는 TETO 중 하나."),
                         Map.of("role","user","content", prompt)
                 },
                 "temperature", 0.4,
@@ -107,6 +111,8 @@ public class GptTextGenClient implements TextGenClient {
             List<String> raw = toStringList(json.get("tags"));
             if (raw.isEmpty()) raw = List.of("안정감","소통","배려");
             List<String> tags = normalizeTags(raw);
+            String egen = clean((String) json.getOrDefault("egenType", "")).toUpperCase(java.util.Locale.ROOT);
+            if (!egen.equals("EGEN") && !egen.equals("TETO")) egen = "";
 
             if (feature.isBlank() || partner.isBlank()) {
                 log.warn("[GPT] JSON 필드 누락/비어있음 → 기본값 보강. content={}", abbreviate(content));
@@ -118,7 +124,7 @@ public class GptTextGenClient implements TextGenClient {
                     .feature(feature)
                     .recommendedPartner(partner)
                     .tags(tags)
-                    .egenType(null)
+                    .egenType(egen)
                     .build();
 
         } catch (WebClientResponseException e) {
@@ -204,16 +210,16 @@ public class GptTextGenClient implements TextGenClient {
 
     private String buildPrompt(Map<String,String> a){
         String[][] qs = new String[][]{
-                {"새로운 사람 만남 선호","친구들과 함께하는 시끌벅적한 모임(a)","조용한 1:1 대화(b)"},
-                {"상대 선택 기준","유머러스/즐거움(a)","진지한 대화(b)"},
+                {"첫 만남에서의 당신, 주로 어떤 상황을 선호하시나요?","사람들과 함께하는 시끌벅적한 모임(a)","조용하고 분위기 있는 카페에서 일대일 대화(b)"},
+                {"데이트 상대를 볼 때, 가장 중요하게 생각하는 것은?","유머러스하고 즐거운 시간을 보내 줄 수 있는 사람(a)","진지하고 깊이 있는 대화를 나눌 수 있는 사람(b)"},
                 {"첫 인사할 때, 어떤 모습일까요?","먼저 다가가서 밝게 인사하기(a)","작게 웃으면서 고개 숙이기(b)"},
-                {"갈등 태도","직접 소통/해결(a)","경청/부드럽게 대처(b)"},
-                {"외모/스타일","힙/트렌디/강렬(a)","깔끔/단정/부드러움(b)"},
-                {"계획 성향","즉흥적(a)","계획적(b)"},
-                {"애정 표현","솔직/직접(a)","은근/섬세(b)"},
-                {"관계 가치","흥미/활력(a)","안정/신뢰(b)"},
+                {"갈등상황에서 당신은?","회피하기보단 직접적으로 소통하고 해결하려한다.(a)","상대의 의견을 먼저 듣고 배려하며 부드럽게 대처한다.(b)"},
+                {"당신의 외적 이상형에 더 가까운 것은?","힙하고 트렌디한 스타일(a)","깔끔하고 단정한 스타일(b)"},
+                {"어떤 데이트를 선호하나요?","즉흥적이고 계획되지 않은 데이트(a)","미리 준비한 안정적인 데이트(b)"},
+                {"애정 표현 방식은 주로 어떤가요?","솔직하고 직접적(a)","은은하고 섬세함(b)"},
+                {"관계에서 당신이 추구하는 가치는?","서로에게 새로운 활력을 불어주는 흥미로움(a)","편안한 신뢰를 바탕으로 한 안정감(b)"},
                 {"호감 있는 사람과 데이트 중 손이 닿았을 때, 어떻게 할 건가요?","자연스럽게 손 잡기(a)","작게 웃으며 눈치만 보기(b)"},
-                {"상호작용","분위기 주도/리드(a)","경청/맞춤(b)"}
+                {"데이트 상대와 있을 때, 당신의 모습은?","재미있는 분위기를 주도하고 리드하는 편(a)","상대방의 이야기에 귀 기울이고 맞춰주는 편(b)"}
         };
         StringBuilder sb = new StringBuilder("아래 A/B 선택 결과를 근거로 결과를 만들어라.\n\n");
         for (int i = 0; i < 10; i++) {
@@ -221,7 +227,7 @@ public class GptTextGenClient implements TextGenClient {
             sb.append(i + 1).append(". ").append(qs[i][0]).append(" = ")
                     .append("a".equalsIgnoreCase(sel) ? qs[i][1] : qs[i][2]).append("\n");
         }
-        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"]}");
+        sb.append("\n반드시 JSON만 출력: {\"feature\":\"...\",\"recommendedPartner\":\"...\",\"tags\":[\"단어\",\"단어\",\"단어\"],\"egenType\":\"EGEN|TETO\"}");
         return sb.toString();
     }
 
