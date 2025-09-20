@@ -1,3 +1,4 @@
+// com/example/uni/picture/TypeImageUploadController.java
 package com.example.uni.picture;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,12 +32,12 @@ public class TypeImageUploadController {
                          @RequestPart("file") MultipartFile file,
                          HttpServletRequest req) throws IOException {
 
-        // 허용: 1~4, 2.1~2.4, 3.1~3.5, 4.1~4.54
+        // 허용: 1~4, 2.1~2.4, 3.1~3.5, 4.1~4.54, 4.default
         boolean ok =
                 type.matches("^[1-4]$") ||
                         type.matches("^2\\.[1-4]$") ||
                         type.matches("^3\\.[1-5]$") ||
-                        type.matches("^4\\.(?:[1-9]|[1-4][0-9]|5[0-4])$");
+                        type.matches("^4\\.(?:default|[1-9]|[1-4][0-9]|5[0-4])$");
         if (!ok) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type 범위 오류");
 
         if (file == null || file.isEmpty()) {
@@ -51,7 +52,7 @@ public class TypeImageUploadController {
         if (!StringUtils.hasText(ext)) ext = "png";
         ext = ext.toLowerCase();
 
-        String filename = "type" + type + "." + ext; // ex) type4.12.png
+        String filename = "type" + type + "." + ext; // 예: type4.12.png, type4.default.png
         Path target = dir.resolve(filename);
         file.transferTo(target.toFile());
 
@@ -61,14 +62,14 @@ public class TypeImageUploadController {
         String base = scheme + "://" + host + ((port == 80 || port == 443) ? "" : (":" + port));
         String url = base + (contextPath == null ? "" : contextPath) + "/files/profile-types/" + filename;
 
-        // 프로퍼티 키 안내
+        // 프로퍼티 키 계산
         String propertyKey;
         if (type.startsWith("2.")) {
             propertyKey = "app.type-image2." + type.substring(2);
         } else if (type.startsWith("3.")) {
             propertyKey = "app.type-image3." + type.substring(2);
         } else if (type.startsWith("4.")) {
-            propertyKey = "app.type-image4." + type.substring(2);
+            propertyKey = "app.type-image4." + type.substring(2); // 4.default -> app.type-image4.default
         } else {
             propertyKey = "app.type-image." + type;
         }
