@@ -126,7 +126,7 @@ public class MatchingService {
         return Math.abs(h) % 54 + 1;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> previousMatches(Long meId) {
         User me = userRepository.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         List<Map<String, Object>> raw = new ArrayList<>();
@@ -136,6 +136,7 @@ public class MatchingService {
             }
         } catch (Exception ignore) {}
         List<Map<String, Object>> out = new ArrayList<>();
+        boolean changed = false;
         for (Map<String, Object> c : raw) {
             Object idObj = c.getOrDefault("userId", c.get("id"));
             Long pid = null;
@@ -148,41 +149,38 @@ public class MatchingService {
             }
             User peer = userRepository.findById(pid).orElse(null);
             if (peer == null || peer.getDeactivatedAt() != null) {
-                Map<String, Object> masked = new LinkedHashMap<>();
-                masked.put("userId", pid);
-                masked.put("name", unknownUserName);
-                masked.put("department", null);
-                masked.put("introduce", null);
-                masked.put("typeImageUrl", unknownUserImage);
-                masked.put("typeImageUrl2", unknownUserImage);
-                masked.put("typeImageUrl3", unknownUserImage);
-                masked.put("avatarUrl", unknownUserImage);
-                masked.put("profileImageUrl", unknownUserImage);
-                addClientAliases(masked);
-                out.add(masked);
-            } else {
-                int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
-                String profile = peer.getProfileImageUrl();
-                boolean hasProfile = profile != null && !profile.trim().isEmpty();
-                String img1 = hasProfile ? profile : userService.resolveTypeImage(typeId);
-                String img2 = hasProfile ? profile : userService.resolveTypeImage2(typeId);
-                String img3 = hasProfile ? profile : userService.resolveTypeImage3(typeId);
-                Map<String, Object> safe = new LinkedHashMap<>(c);
-                safe.put("userId", peer.getId());
-                safe.put("name", peer.getName());
-                safe.put("department", peer.getDepartment());
-                safe.put("introduce", peer.getIntroduce());
-                safe.put("typeImageUrl", img1);
-                safe.put("typeImageUrl2", img2);
-                safe.put("typeImageUrl3", img3);
-                safe.put("avatarUrl", img1);
-                safe.put("profileImageUrl", img1);
-                addClientAliases(safe);
-                out.add(safe);
+                changed = true;
+                continue;
             }
+            if (chatRoomService.existsBetween(me.getId(), pid)) {
+                changed = true;
+                continue;
+            }
+            int typeId = (peer.getTypeId() != null) ? peer.getTypeId() : 4;
+            String profile = peer.getProfileImageUrl();
+            boolean hasProfile = profile != null && !profile.trim().isEmpty();
+            String img1 = hasProfile ? profile : userService.resolveTypeImage(typeId);
+            String img2 = hasProfile ? profile : userService.resolveTypeImage2(typeId);
+            String img3 = hasProfile ? profile : userService.resolveTypeImage3(typeId);
+            Map<String, Object> safe = new LinkedHashMap<>(c);
+            safe.put("userId", peer.getId());
+            safe.put("name", peer.getName());
+            safe.put("department", peer.getDepartment());
+            safe.put("introduce", peer.getIntroduce());
+            safe.put("typeImageUrl", img1);
+            safe.put("typeImageUrl2", img2);
+            safe.put("typeImageUrl3", img3);
+            safe.put("avatarUrl", img1);
+            safe.put("profileImageUrl", img1);
+            addClientAliases(safe);
+            out.add(safe);
+        }
+        if (changed) {
+            try { me.setLastMatchJson(om.writeValueAsString(out)); userRepository.save(me); } catch (Exception ignore) {}
         }
         return Map.of("candidates", out);
     }
+
 
     @Transactional(readOnly = true)
     public Map<String, Object> signalStatus(Long meId, Long targetId) {
@@ -199,14 +197,11 @@ public class MatchingService {
         if (me.getDeactivatedAt() != null) throw new ApiException(ErrorCode.FORBIDDEN);
         if (!me.isProfileComplete() || me.getGender() == null) throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (me.getMatchCredits() < 1) throw new ApiException(ErrorCode.MATCH_CREDITS_EXHAUSTED);
-
         Gender opposite = (me.getGender() == Gender.MALE) ? Gender.FEMALE : Gender.MALE;
         var pool = new ArrayList<>(userCandidateRepository.findCandidates(opposite, me.getDepartment(), me.getId()));
         Collections.shuffle(pool);
-
         Set<Long> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
-
         List<Map<String, Object>> candidates = new ArrayList<>();
         for (User u : pool) {
             if (candidates.size() == 3) break;
@@ -218,11 +213,9 @@ public class MatchingService {
             addClientAliases(card);
             candidates.add(card);
         }
-
         if (candidates.isEmpty()) {
             return MatchResultResponse.builder().candidates(candidates).build();
         }
-
         me.setMatchCredits(me.getMatchCredits() - 1);
         try {
             me.setLastMatchJson(om.writeValueAsString(candidates));
@@ -231,7 +224,6 @@ public class MatchingService {
         }
         me.setLastMatchAt(LocalDateTime.now());
         userRepository.save(me);
-
         return MatchResultResponse.builder().candidates(candidates).build();
     }
 
@@ -241,25 +233,17 @@ public class MatchingService {
         User me = userRepository.findById(meId).orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         User target = userRepository.findById(targetId).orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         if (me.getDeactivatedAt() != null || target.getDeactivatedAt() != null) throw new ApiException(ErrorCode.FORBIDDEN);
-
-        if (me.getDepartment() != null && target.getDepartment() != null
-                && me.getDepartment().equals(target.getDepartment())) {
+        if (me.getDepartment() != null && target.getDepartment() != null && me.getDepartment().equals(target.getDepartment())) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         }
-
         if (me.getGender() == target.getGender()) throw new ApiException(ErrorCode.VALIDATION_ERROR);
         if (chatRoomService.existsBetween(me.getId(), target.getId())) throw new ApiException(ErrorCode.CONFLICT);
-
         Signal s = signalRepository.findBySenderAndReceiver(me, target).orElse(null);
         if (s == null) {
             if (me.getSignalCredits() < 1) throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
             me.setSignalCredits(me.getSignalCredits() - 1);
             s = signalRepository.save(Signal.builder().sender(me).receiver(target).status(Signal.Status.SENT).build());
-            signalLogRepository.save(SignalLog.builder()
-                    .senderId(me.getId())
-                    .receiverId(target.getId())
-                    .receiverDepartment(target.getDepartment())
-                    .build());
+            signalLogRepository.save(SignalLog.builder().senderId(me.getId()).receiverId(target.getId()).receiverDepartment(target.getDepartment()).build());
             String message = "새로운 신호가 있어요!";
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("type", "SENT");
@@ -275,11 +259,7 @@ public class MatchingService {
                 s.setStatus(Signal.Status.SENT);
                 s.setReceiverDeletedAt(null);
                 signalRepository.save(s);
-                signalLogRepository.save(SignalLog.builder()
-                        .senderId(me.getId())
-                        .receiverId(target.getId())
-                        .receiverDepartment(target.getDepartment())
-                        .build());
+                signalLogRepository.save(SignalLog.builder().senderId(me.getId()).receiverId(target.getId()).receiverDepartment(target.getDepartment()).build());
                 String message = "새로운 신호가 있어요!";
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("type", "SENT");
@@ -346,14 +326,12 @@ public class MatchingService {
                 signalRepository.save(other);
             }
         });
-
         matchLogRepository.save(MatchLog.builder()
                 .userAId(s.getSender().getId())
                 .userBId(s.getReceiver().getId())
                 .departmentA(s.getSender().getDepartment())
                 .departmentB(s.getReceiver().getDepartment())
                 .build());
-
         Map<String, Object> peers = new LinkedHashMap<>();
         peers.put(String.valueOf(s.getSender().getId()), peerBrief(s.getReceiver()));
         peers.put(String.valueOf(s.getReceiver().getId()), peerBrief(s.getSender()));
@@ -373,6 +351,8 @@ public class MatchingService {
             notifier.toUser(s.getSender().getId(), RealtimeNotifier.Q_MATCH, forSender);
             notifier.toUser(s.getReceiver().getId(), RealtimeNotifier.Q_MATCH, forReceiver);
         });
+        removePeerFromLast(s.getSender().getId(), s.getReceiver().getId());
+        removePeerFromLast(s.getReceiver().getId(), s.getSender().getId());
         signalRepository.deleteBySenderAndReceiver(s.getSender(), s.getReceiver());
         signalRepository.deleteBySenderAndReceiver(s.getReceiver(), s.getSender());
         return resp;
@@ -484,6 +464,34 @@ public class MatchingService {
         return out;
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> rankMbtiBySignals(int limit) {
+        var rows = signalLogRepository.countByReceiverMbti();
+        var out = new ArrayList<Map<String, Object>>();
+        int i = 1;
+        for (Object[] r : rows) {
+            if (out.size() >= limit) break;
+            String mbti = (String) r[0];
+            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
+            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
+        }
+        return out;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> rankMbtiByMatches(int limit) {
+        var rows = matchLogRepository.rankMbtiByMatches();
+        var out = new ArrayList<Map<String, Object>>();
+        int i = 1;
+        for (Object[] r : rows) {
+            if (out.size() >= limit) break;
+            String mbti = (String) r[0];
+            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
+            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
+        }
+        return out;
+    }
+
     private Map<String, Object> signalUserCard(User u) {
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("userId", u.getId());
@@ -520,7 +528,6 @@ public class MatchingService {
         boolean hasProfile = profile != null && !profile.trim().isEmpty();
         String img = hasProfile ? profile : userService.resolveTypeImage2(typeId);
         m.put("typeImageUrl2", img);
-        // ✅ 채팅 UI가 기대하는 필드도 반드시 채움
         m.put("avatarUrl", img);
         m.put("profileImageUrl", img);
         return m;
@@ -614,31 +621,34 @@ public class MatchingService {
         }
     }
 
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> rankMbtiBySignals(int limit) {
-        var rows = signalLogRepository.countByReceiverMbti();
-        var out = new ArrayList<Map<String, Object>>();
-        int i = 1;
-        for (Object[] r : rows) {
-            if (out.size() >= limit) break;
-            String mbti = (String) r[0];
-            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
+    private void removePeerFromLast(Long userId, Long peerId) {
+        User u = userRepository.findById(userId).orElse(null);
+        if (u == null) return;
+        List<Map<String, Object>> raw = new ArrayList<>();
+        try {
+            if (u.getLastMatchJson() != null && !u.getLastMatchJson().isBlank()) {
+                raw = om.readValue(u.getLastMatchJson(), new TypeReference<>() {});
+            }
+        } catch (Exception ignore) {}
+        if (raw.isEmpty()) return;
+        List<Map<String, Object>> filtered = new ArrayList<>();
+        boolean changed = false;
+        for (Map<String, Object> c : raw) {
+            Object idObj = c.getOrDefault("userId", c.get("id"));
+            Long pid = null;
+            if (idObj instanceof Number n) pid = n.longValue();
+            else if (idObj instanceof String s && !s.isBlank()) try { pid = Long.valueOf(s.trim()); } catch (Exception ignore) {}
+            if (pid != null && Objects.equals(pid, peerId)) {
+                changed = true;
+                continue;
+            }
+            filtered.add(c);
         }
-        return out;
-    }
-
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> rankMbtiByMatches(int limit) {
-        var rows = matchLogRepository.rankMbtiByMatches();
-        var out = new ArrayList<Map<String, Object>>();
-        int i = 1;
-        for (Object[] r : rows) {
-            if (out.size() >= limit) break;
-            String mbti = (String) r[0];
-            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
+        if (changed) {
+            try {
+                u.setLastMatchJson(om.writeValueAsString(filtered));
+                userRepository.save(u);
+            } catch (Exception ignore) {}
         }
-        return out;
     }
 }

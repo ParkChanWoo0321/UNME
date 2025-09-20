@@ -107,6 +107,10 @@ public class OAuthService {
         user.setEmail("deleted+" + user.getId() + "+" + UUID.randomUUID() + "@deleted.local");
         user.setProfileImageUrl(null);
 
+        // ✅ 이전 매칭 캐시 초기화
+        user.setLastMatchJson("[]");
+        user.setLastMatchAt(null);
+
         userRepository.save(user);
         chatRoomService.markUserLeft(userId, unknownUserName, unknownUserImage);
     }

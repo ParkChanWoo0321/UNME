@@ -1,3 +1,4 @@
+// com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
 import com.example.uni.chat.ChatRoomService;
@@ -244,7 +245,7 @@ public class UserService {
         return saved;
     }
 
-    // 회원탈퇴: 대기중 신호 일괄 정리 + Firestore 마스킹
+    // 회원탈퇴: 대기중 신호 일괄 정리 + Firestore 마스킹 + 이전 매칭 캐시 초기화
     @Transactional
     public void deactivateAndCleanup(Long meId) {
         User me = userRepository.findById(meId)
@@ -252,6 +253,11 @@ public class UserService {
         if (me.getDeactivatedAt() != null) return;
 
         me.setDeactivatedAt(LocalDateTime.now());
+
+        // ✅ 이전 매칭 캐시 초기화
+        me.setLastMatchJson("[]");
+        me.setLastMatchAt(null);
+
         userRepository.save(me);
 
         // 파라미터화된 bulk update 메서드 사용 (레포지토리 구현 필요)
