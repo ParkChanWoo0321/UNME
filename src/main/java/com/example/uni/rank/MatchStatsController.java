@@ -26,4 +26,9 @@ public class MatchStatsController {
     public ResponseEntity<?> mbtiMatchesRanking(@RequestParam(defaultValue = "10") int limit) {
         return ResponseEntity.ok(java.util.Map.of("ranking", matchingService.rankMbtiByMatches(limit)));
     }
+
+    @GetMapping("/stats/rank/department-signals")
+    public ResponseEntity<?> departmentSignalRanking(@RequestParam(defaultValue = "10") int limit) {
+        return ResponseEntity.ok(java.util.Map.of("ranking", matchingService.rankDepartments(limit)));
+    }
 }

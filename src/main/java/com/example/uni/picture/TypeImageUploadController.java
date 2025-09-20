@@ -1,4 +1,3 @@
-// com/example/uni/picture/TypeImageUploadController.java
 package com.example.uni.picture;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -26,25 +24,23 @@ public class TypeImageUploadController {
     private String uploadRoot;
 
     @Value("${server.servlet.context-path:}")
-    private String contextPath; // 예: "/api" 또는 ""
+    private String contextPath;
 
     @PostMapping(value = "/{type}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Object upload(@PathVariable String type,
                          @RequestPart("file") MultipartFile file,
                          HttpServletRequest req) throws IOException {
 
-        // 허용 타입: 1,2,3,4, 2.1~2.4, 3.1~3.5
-        List<String> allowedTypes = List.of(
-                "1", "2", "3", "4",
-                "2.1", "2.2", "2.3", "2.4",
-                "3.1", "3.2", "3.3", "3.4", "3.5" // ← 추가
-        );
-        if (!allowedTypes.contains(type)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type은 1~4, 2.1~2.4, 3.1~3.5만 허용");
-        }
+        // 허용: 1~4, 2.1~2.4, 3.1~3.5, 4.1~4.54
+        boolean ok =
+                type.matches("^[1-4]$") ||
+                        type.matches("^2\\.[1-4]$") ||
+                        type.matches("^3\\.[1-5]$") ||
+                        type.matches("^4\\.(?:[1-9]|[1-4][0-9]|5[0-4])$");
+        if (!ok) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type 범위 오류");
 
         if (file == null || file.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file 파트가 비어있음");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "file 비어있음");
         }
 
         Path dir = Paths.get(uploadRoot, "profile-types");
@@ -55,23 +51,24 @@ public class TypeImageUploadController {
         if (!StringUtils.hasText(ext)) ext = "png";
         ext = ext.toLowerCase();
 
-        String filename = "type" + type + "." + ext; // ex) type3.5.png
+        String filename = "type" + type + "." + ext; // ex) type4.12.png
         Path target = dir.resolve(filename);
         file.transferTo(target.toFile());
 
-        // 공개 URL
-        String scheme = req.getScheme(); // http/https
+        String scheme = req.getScheme();
         String host = req.getServerName();
         int port = req.getServerPort();
         String base = scheme + "://" + host + ((port == 80 || port == 443) ? "" : (":" + port));
         String url = base + (contextPath == null ? "" : contextPath) + "/files/profile-types/" + filename;
 
-        // 프로퍼티 키 접두사 분기
+        // 프로퍼티 키 안내
         String propertyKey;
         if (type.startsWith("2.")) {
             propertyKey = "app.type-image2." + type.substring(2);
         } else if (type.startsWith("3.")) {
-            propertyKey = "app.type-image3." + type.substring(2); // 3.5 -> app.type-image3.5
+            propertyKey = "app.type-image3." + type.substring(2);
+        } else if (type.startsWith("4.")) {
+            propertyKey = "app.type-image4." + type.substring(2);
         } else {
             propertyKey = "app.type-image." + type;
         }
@@ -81,8 +78,7 @@ public class TypeImageUploadController {
                 "saved", target.toAbsolutePath().toString(),
                 "url", url,
                 "propertyKey", propertyKey,
-                "propertyValue", url,
-                "note", "application.properties에 위 propertyKey=propertyValue로 설정하세요"
+                "propertyValue", url
         );
     }
 }

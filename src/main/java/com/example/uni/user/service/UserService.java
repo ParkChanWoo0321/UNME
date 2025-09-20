@@ -77,6 +77,12 @@ public class UserService {
     public String resolveTypeImage2(int typeId) { return imageUrlByType2(typeId); }
     public String resolveTypeImage3(int typeId) { return imageUrlByType3(typeId); }
 
+    public String resolveTypeImage4(int idx) {
+        String url = env.getProperty("app.type-image4." + idx, "");
+        if (url == null || url.isBlank()) url = env.getProperty("app.type-image4.default", "");
+        return url;
+    }
+
     public User get(Long id){
         return userRepository.findById(id)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));

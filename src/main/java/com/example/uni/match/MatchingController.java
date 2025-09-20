@@ -67,11 +67,4 @@ public class MatchingController {
             @org.springframework.security.core.annotation.AuthenticationPrincipal String principal){
         return ResponseEntity.ok(matchingService.listReceivedSignals(uid(principal)));
     }
-
-    @GetMapping("/signals/rank/departments")
-    public ResponseEntity<?> rankDepartments(
-            @org.springframework.security.core.annotation.AuthenticationPrincipal String principal,
-            @RequestParam(name = "limit", defaultValue = "10") int limit){
-        return ResponseEntity.ok(matchingService.rankDepartments(limit));
-    }
 }

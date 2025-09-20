@@ -1,4 +1,3 @@
-// com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
 import com.example.uni.chat.ChatRoomService;
@@ -44,6 +43,93 @@ public class MatchingService {
     private String unknownUserName;
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
+
+    // 학과 → type4 인덱스(1~54)
+    private static final Map<String, Integer> DEPT_TYPE4_INDEX = new LinkedHashMap<>();
+    // 정규화된 학과명(소문자+공백제거) → 인덱스
+    private static final Map<String, Integer> DEPT_TYPE4_INDEX_NORM = new HashMap<>();
+
+    static {
+        DEPT_TYPE4_INDEX.put("항공교통물류학과", 1);
+        DEPT_TYPE4_INDEX.put("항공운항학과", 2);
+        DEPT_TYPE4_INDEX.put("헬리콥터조종학과", 3);
+        DEPT_TYPE4_INDEX.put("항공정비학과", 4);
+        DEPT_TYPE4_INDEX.put("항공보안학과", 5);
+        DEPT_TYPE4_INDEX.put("항공기계공학과", 6);
+        DEPT_TYPE4_INDEX.put("항공전자공학과", 7);
+        DEPT_TYPE4_INDEX.put("무인항공기학과", 8);
+        DEPT_TYPE4_INDEX.put("항공산업공학과", 9);
+        DEPT_TYPE4_INDEX.put("신소재화학공학과", 10);
+        DEPT_TYPE4_INDEX.put("환경·토목·건축학과", 11);
+        DEPT_TYPE4_INDEX.put("항공AI소프트웨어공학과", 12);
+        DEPT_TYPE4_INDEX.put("AI로보틱스학과", 13);
+        DEPT_TYPE4_INDEX.put("AI모빌리티학과", 14);
+        DEPT_TYPE4_INDEX.put("항공관광학과", 15);
+        DEPT_TYPE4_INDEX.put("항공외국어학과", 16);
+        DEPT_TYPE4_INDEX.put("호텔카지노관광학과", 17);
+        DEPT_TYPE4_INDEX.put("문화재보존학과", 18);
+        DEPT_TYPE4_INDEX.put("미디어문예창작학과", 19);
+        DEPT_TYPE4_INDEX.put("실용음악과", 20);
+        DEPT_TYPE4_INDEX.put("영어영상학과", 21);
+        DEPT_TYPE4_INDEX.put("사회복지학과", 22);
+        DEPT_TYPE4_INDEX.put("간호학과", 23);
+        DEPT_TYPE4_INDEX.put("물리치료학과", 24);
+        DEPT_TYPE4_INDEX.put("작업치료학과", 25);
+        DEPT_TYPE4_INDEX.put("방사선학과", 26);
+        DEPT_TYPE4_INDEX.put("치위생학과", 27);
+        DEPT_TYPE4_INDEX.put("의료재활학과", 28);
+        DEPT_TYPE4_INDEX.put("수산생명의학과", 29);
+        DEPT_TYPE4_INDEX.put("영상애니메이션학과", 30);
+        DEPT_TYPE4_INDEX.put("공간디자인학과", 31);
+        DEPT_TYPE4_INDEX.put("산업디자인학과", 32);
+        DEPT_TYPE4_INDEX.put("시각디자인학과", 33);
+        DEPT_TYPE4_INDEX.put("해양경찰학과", 34);
+        DEPT_TYPE4_INDEX.put("경호비서학과", 35);
+        DEPT_TYPE4_INDEX.put("레저해양스포츠학과", 36);
+        DEPT_TYPE4_INDEX.put("자유전공학과", 37);
+        DEPT_TYPE4_INDEX.put("인문사회전공자율학과", 38);
+        DEPT_TYPE4_INDEX.put("공학전공자율학과", 39);
+        DEPT_TYPE4_INDEX.put("자연과학전공자율학과", 40);
+        DEPT_TYPE4_INDEX.put("예체능전공자율학과", 41);
+        DEPT_TYPE4_INDEX.put("첨단항공학과", 42);
+        DEPT_TYPE4_INDEX.put("항공서비스경영학과", 43);
+        DEPT_TYPE4_INDEX.put("모빌리티융합디자인학과", 44);
+        DEPT_TYPE4_INDEX.put("디지털융합학과(성인학습자)", 45);
+        DEPT_TYPE4_INDEX.put("항공소프트웨어공학과", 46);
+        DEPT_TYPE4_INDEX.put("공항행정학과", 47);
+        DEPT_TYPE4_INDEX.put("항공컴퓨터학과", 48);
+        DEPT_TYPE4_INDEX.put("식품공학과", 49);
+        DEPT_TYPE4_INDEX.put("국제관계학과", 50);
+        DEPT_TYPE4_INDEX.put("전기전자공학과", 51);
+        DEPT_TYPE4_INDEX.put("안전보건학과", 52);
+        DEPT_TYPE4_INDEX.put("뷰티바이오산업학과", 53);
+        DEPT_TYPE4_INDEX.put("패션디자인학과", 54);
+
+        // 정규화 맵 채우기
+        DEPT_TYPE4_INDEX.forEach((k, v) -> DEPT_TYPE4_INDEX_NORM.put(normDept(k), v));
+    }
+
+    private static String normDept(String s) {
+        if (s == null) return "";
+        return s.toLowerCase(Locale.ROOT).replaceAll("\\s+", "");
+    }
+
+    private static int clamp54(int v) {
+        return (v < 1) ? 1 : Math.min(v, 54);
+    }
+
+    /** 과명 → type4 인덱스: 1) 수동매핑 2) 정규화 매핑 3) 해시 분배(1~54) */
+    private int type4IndexFor(String dept) {
+        if (dept != null) {
+            Integer direct = DEPT_TYPE4_INDEX.get(dept);
+            if (direct != null) return clamp54(direct);
+            Integer normalized = DEPT_TYPE4_INDEX_NORM.get(normDept(dept));
+            if (normalized != null) return clamp54(normalized);
+        }
+        int h = 0;
+        if (dept != null) for (char c : dept.toCharArray()) h = 31 * h + c;
+        return Math.abs(h) % 54 + 1;
+    }
 
     @Transactional(readOnly = true)
     public Map<String, Object> previousMatches(Long meId) {
@@ -311,10 +397,12 @@ public class MatchingService {
             if (out.size() >= limit) break;
             String dept = (String) r[0];
             long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
+            int idx = type4IndexFor(dept);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("rank", rank++);
             m.put("department", dept);
             m.put("count", cnt);
+            m.put("imageUrl", userService.resolveTypeImage4(idx));
             out.add(m);
         }
         return out;
@@ -329,7 +417,13 @@ public class MatchingService {
             if (out.size() >= limit) break;
             String dept = (String) r[0];
             long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(Map.of("rank", i++, "department", dept, "count", cnt));
+            int idx = type4IndexFor(dept);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("rank", i++);
+            m.put("department", dept);
+            m.put("count", cnt);
+            m.put("imageUrl", userService.resolveTypeImage4(idx));
+            out.add(m);
         }
         return out;
     }
