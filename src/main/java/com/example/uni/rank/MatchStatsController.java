@@ -14,21 +14,21 @@ public class MatchStatsController {
 
     @GetMapping("/stats/rank/department-matches")
     public ResponseEntity<?> departmentMatchRanking(@RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(java.util.Map.of("ranking", matchingService.rankDepartmentMatches(limit)));
+        return ResponseEntity.ok(matchingService.rankDepartmentMatches(limit));
     }
 
     @GetMapping("/stats/rank/mbti-signals")
     public ResponseEntity<?> mbtiSignalsRanking(@RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(java.util.Map.of("ranking", matchingService.rankMbtiBySignals(limit)));
+        return ResponseEntity.ok(matchingService.rankMbtiBySignals(limit));
     }
 
     @GetMapping("/stats/rank/mbti-matches")
     public ResponseEntity<?> mbtiMatchesRanking(@RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(java.util.Map.of("ranking", matchingService.rankMbtiByMatches(limit)));
+        return ResponseEntity.ok(matchingService.rankMbtiByMatches(limit));
     }
 
     @GetMapping("/stats/rank/department-signals")
     public ResponseEntity<?> departmentSignalRanking(@RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(java.util.Map.of("ranking", matchingService.rankDepartments(limit)));
+        return ResponseEntity.ok(matchingService.rankDepartments(limit));
     }
 }
