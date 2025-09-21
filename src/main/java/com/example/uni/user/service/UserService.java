@@ -36,7 +36,7 @@ public class UserService {
     private final ChatRoomService chatRoomService;
     private final SignalRepository signalRepository;
 
-    @Value("${app.unknown-user.name:알 수 없는 유저}")
+    @Value("#{T(org.springframework.util.StringUtils).hasText('${app.unknown-user.name:}') ? '${app.unknown-user.name}' : '탈퇴한 사용자'}")
     private String unknownUserName;
     @Value("${app.unknown-user.image:}")
     private String unknownUserImage;
