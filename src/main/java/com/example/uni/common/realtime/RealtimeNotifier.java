@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RealtimeNotifier {
 
-    public static final String Q_SIGNAL = "/queue/signal";
-    public static final String Q_MATCH  = "/queue/match";
+    public static final String Q_SIGNAL = "/queue/signals";
+    public static final String Q_MATCH  = "/queue/matches";
 
     private final SimpMessagingTemplate ws;
 

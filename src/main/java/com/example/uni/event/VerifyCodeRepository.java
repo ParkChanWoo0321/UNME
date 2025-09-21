@@ -12,7 +12,7 @@ public interface VerifyCodeRepository extends JpaRepository<VerifyCode, UUID> {
     @Query("""
            update VerifyCode v
               set v.used = true, v.usedAt = :now
-            where v.code = :code
+            where upper(v.code) = :code
               and v.used = false
            """)
     int markUsedIfUsable(@Param("code") String code,
