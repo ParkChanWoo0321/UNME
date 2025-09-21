@@ -18,6 +18,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ public class MatchingService {
     private final AfterCommitExecutor afterCommit;
     private final UserService userService;
     private final ObjectMapper om;
+    private final Environment env;
 
     @Value("#{T(org.springframework.util.StringUtils).hasText('${app.unknown-user.name:}') ? '${app.unknown-user.name}' : '탈퇴한 사용자'}")
     private String unknownUserName;
@@ -103,6 +105,25 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("뷰티바이오산업학과", 53);
         DEPT_TYPE4_INDEX.put("패션디자인학과", 54);
         DEPT_TYPE4_INDEX.forEach((k, v) -> DEPT_TYPE4_INDEX_NORM.put(normDept(k), v));
+    }
+
+    private static final Map<String,Integer> MBTI_INDEX = Map.ofEntries(
+            Map.entry("ISTJ",1), Map.entry("ISFJ",2),
+            Map.entry("INFJ",3), Map.entry("INTJ",4),
+            Map.entry("ISTP",5), Map.entry("ISFP",6),
+            Map.entry("INFP",7), Map.entry("INTP",8),
+            Map.entry("ESTP",9), Map.entry("ESFP",10),
+            Map.entry("ENFP",11), Map.entry("ENTP",12),
+            Map.entry("ESTJ",13), Map.entry("ESFJ",14),
+            Map.entry("ENFJ",15), Map.entry("ENTJ",16)
+    );
+
+    private String mbtiImageUrl(String mbti) {
+        if (mbti == null) return null;
+        Integer idx = MBTI_INDEX.get(mbti.toUpperCase(Locale.ROOT));
+        if (idx == null) return null;
+        String url = env.getProperty("app.type-image5." + idx);
+        return (url != null && !url.isBlank()) ? url : null;
     }
 
     private static String normDept(String s) {
@@ -180,7 +201,6 @@ public class MatchingService {
         }
         return Map.of("candidates", out);
     }
-
 
     @Transactional(readOnly = true)
     public Map<String, Object> signalStatus(Long meId, Long targetId) {
@@ -472,8 +492,13 @@ public class MatchingService {
         for (Object[] r : rows) {
             if (out.size() >= limit) break;
             String mbti = (String) r[0];
-            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
+            long cnt = ((Number) r[1]).longValue();
+            out.add(Map.of(
+                    "rank", i++,
+                    "mbti", mbti,
+                    "count", cnt,
+                    "imageUrl", mbtiImageUrl(mbti)
+            ));
         }
         return out;
     }
@@ -486,8 +511,13 @@ public class MatchingService {
         for (Object[] r : rows) {
             if (out.size() >= limit) break;
             String mbti = (String) r[0];
-            long cnt = (r[1] instanceof Long) ? (Long) r[1] : ((Number) r[1]).longValue();
-            out.add(Map.of("rank", i++, "mbti", mbti, "count", cnt));
+            long cnt = ((Number) r[1]).longValue();
+            out.add(Map.of(
+                    "rank", i++,
+                    "mbti", mbti,
+                    "count", cnt,
+                    "imageUrl", mbtiImageUrl(mbti)
+            ));
         }
         return out;
     }
