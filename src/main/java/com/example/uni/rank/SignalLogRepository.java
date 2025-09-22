@@ -1,3 +1,4 @@
+// com/example/uni/rank/SignalLogRepository.java
 package com.example.uni.rank;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,15 +17,11 @@ order by cnt desc, receiver_department collate utf8mb4_0900_ai_ci asc
     List<Object[]> countByReceiverDepartment();
 
     @Query(value = """
-select mbti, count(*) as cnt
-from (
-  select upper(u.mbti) as mbti
-  from signal_logs l
-  join users u on u.id = l.receiver_id
-  where u.deactivated_at is null and u.mbti is not null and u.mbti <> ''
-) t
-group by mbti
-order by cnt desc, mbti asc
+select receiver_mbti as mbti, count(*) as cnt
+from signal_logs
+where receiver_mbti is not null and receiver_mbti <> ''
+group by receiver_mbti
+order by cnt desc, receiver_mbti asc
 """, nativeQuery = true)
     List<Object[]> countByReceiverMbti();
 }

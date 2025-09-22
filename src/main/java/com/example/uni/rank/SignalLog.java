@@ -1,4 +1,4 @@
-// com/example/uni/match/SignalLog.java
+// com/example/uni/rank/SignalLog.java
 package com.example.uni.rank;
 
 import com.example.uni.common.domain.BaseTimeEntity;
@@ -9,7 +9,10 @@ import lombok.*;
 @Setter
 @Entity
 @Table(name = "signal_logs",
-        indexes = @Index(name = "idx_siglog_rcv_dept", columnList = "receiver_department"))
+        indexes = {
+                @Index(name = "idx_siglog_rcv_dept", columnList = "receiver_department"),
+                @Index(name = "idx_siglog_rcv_mbti", columnList = "receiver_mbti")
+        })
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -26,4 +29,7 @@ public class SignalLog extends BaseTimeEntity {
 
     @Column(name = "receiver_department")
     private String receiverDepartment;
+
+    @Column(name = "receiver_mbti", length = 16)
+    private String receiverMbti;
 }

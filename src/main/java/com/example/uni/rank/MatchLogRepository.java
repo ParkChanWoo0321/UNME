@@ -1,3 +1,4 @@
+// com/example/uni/rank/MatchLogRepository.java
 package com.example.uni.rank;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,16 +23,11 @@ public interface MatchLogRepository extends JpaRepository<MatchLog, Long> {
     @Query(value = """
         select mbti, count(*) as matchedCount
         from (
-          select upper(u.mbti) as mbti
-          from match_logs m
-          join users u on u.id = m.user_a_id
-          where u.deactivated_at is null and u.mbti is not null and u.mbti <> ''
+          select mbti_a as mbti from match_logs
           union all
-          select upper(u.mbti) as mbti
-          from match_logs m
-          join users u on u.id = m.user_b_id
-          where u.deactivated_at is null and u.mbti is not null and u.mbti <> ''
+          select mbti_b as mbti from match_logs
         ) t
+        where mbti is not null and mbti <> ''
         group by mbti
         order by matchedCount desc, mbti asc
         """, nativeQuery = true)

@@ -1,3 +1,4 @@
+// com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
 import com.example.uni.chat.ChatRoomService;
@@ -50,15 +51,15 @@ public class MatchingService {
     private static final Map<String, Integer> DEPT_TYPE4_INDEX_NORM = new HashMap<>();
 
     static {
-        DEPT_TYPE4_INDEX.put("항공교통물류학과", 1); //
-        DEPT_TYPE4_INDEX.put("항공운항학과", 2); //
+        DEPT_TYPE4_INDEX.put("항공교통물류학과", 1);
+        DEPT_TYPE4_INDEX.put("항공운항학과", 2);
         DEPT_TYPE4_INDEX.put("헬리콥터조종학과", 3);
-        DEPT_TYPE4_INDEX.put("항공정비학과", 4); //
-        DEPT_TYPE4_INDEX.put("항공보안학과", 5); //
+        DEPT_TYPE4_INDEX.put("항공정비학과", 4);
+        DEPT_TYPE4_INDEX.put("항공보안학과", 5);
         DEPT_TYPE4_INDEX.put("항공기계공학과", 6);
-        DEPT_TYPE4_INDEX.put("항공전자공학과", 7);//
-        DEPT_TYPE4_INDEX.put("무인항공기학과", 8); //
-        DEPT_TYPE4_INDEX.put("항공산업공학과", 9); //
+        DEPT_TYPE4_INDEX.put("항공전자공학과", 7);
+        DEPT_TYPE4_INDEX.put("무인항공기학과", 8);
+        DEPT_TYPE4_INDEX.put("항공산업공학과", 9);
         DEPT_TYPE4_INDEX.put("신소재화학공학과", 10);
         DEPT_TYPE4_INDEX.put("환경·토목·건축학과", 11);
         DEPT_TYPE4_INDEX.put("항공AI소프트웨어공학과", 12);
@@ -69,24 +70,24 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("호텔카지노관광학과", 17);
         DEPT_TYPE4_INDEX.put("문화재보존학과", 18);
         DEPT_TYPE4_INDEX.put("미디어문예창작학과", 19);
-        DEPT_TYPE4_INDEX.put("실용음악과", 20); //
+        DEPT_TYPE4_INDEX.put("실용음악과", 20);
         DEPT_TYPE4_INDEX.put("영화영상학과", 21);
         DEPT_TYPE4_INDEX.put("사회복지학과", 22);
-        DEPT_TYPE4_INDEX.put("간호학과", 23); //
-        DEPT_TYPE4_INDEX.put("물리치료학과", 24); //
+        DEPT_TYPE4_INDEX.put("간호학과", 23);
+        DEPT_TYPE4_INDEX.put("물리치료학과", 24);
         DEPT_TYPE4_INDEX.put("작업치료학과", 25);
         DEPT_TYPE4_INDEX.put("방사선학과", 26);
-        DEPT_TYPE4_INDEX.put("치위생학과", 27); //
-        DEPT_TYPE4_INDEX.put("의료재활학과", 28); //
-        DEPT_TYPE4_INDEX.put("수산생명의학과", 29); //
+        DEPT_TYPE4_INDEX.put("치위생학과", 27);
+        DEPT_TYPE4_INDEX.put("의료재활학과", 28);
+        DEPT_TYPE4_INDEX.put("수산생명의학과", 29);
         DEPT_TYPE4_INDEX.put("영상애니메이션학과", 30);
-        DEPT_TYPE4_INDEX.put("공간디자인학과", 31); //
+        DEPT_TYPE4_INDEX.put("공간디자인학과", 31);
         DEPT_TYPE4_INDEX.put("산업디자인학과", 32);
-        DEPT_TYPE4_INDEX.put("시각디자인학과", 33); //
+        DEPT_TYPE4_INDEX.put("시각디자인학과", 33);
         DEPT_TYPE4_INDEX.put("해양경찰학과", 34);
-        DEPT_TYPE4_INDEX.put("경호비서학과", 35); //
-        DEPT_TYPE4_INDEX.put("레저해양스포츠학과", 36); //
-        DEPT_TYPE4_INDEX.put("자유전공학과", 37); //
+        DEPT_TYPE4_INDEX.put("경호비서학과", 35);
+        DEPT_TYPE4_INDEX.put("레저해양스포츠학과", 36);
+        DEPT_TYPE4_INDEX.put("자유전공학과", 37);
         DEPT_TYPE4_INDEX.put("인문사회전공자율학과", 38);
         DEPT_TYPE4_INDEX.put("공학전공자율학과", 39);
         DEPT_TYPE4_INDEX.put("자연과학전공자율학과", 40);
@@ -95,7 +96,7 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("항공서비스경영학과", 43);
         DEPT_TYPE4_INDEX.put("모빌리티융합디자인학과", 44);
         DEPT_TYPE4_INDEX.put("디지털융합학과(성인학습자)", 45);
-        DEPT_TYPE4_INDEX.put("항공소프트웨어공학과", 46); //
+        DEPT_TYPE4_INDEX.put("항공소프트웨어공학과", 46);
         DEPT_TYPE4_INDEX.put("공항행정학과", 47);
         DEPT_TYPE4_INDEX.put("항공컴퓨터학과", 48);
         DEPT_TYPE4_INDEX.put("식품공학과", 49);
@@ -103,7 +104,7 @@ public class MatchingService {
         DEPT_TYPE4_INDEX.put("전기전자공학과", 51);
         DEPT_TYPE4_INDEX.put("안전보건학과", 52);
         DEPT_TYPE4_INDEX.put("뷰티바이오산업학과", 53);
-        DEPT_TYPE4_INDEX.put("패션디자인학과", 54); //
+        DEPT_TYPE4_INDEX.put("패션디자인학과", 54);
         DEPT_TYPE4_INDEX.forEach((k, v) -> DEPT_TYPE4_INDEX_NORM.put(normDept(k), v));
     }
 
@@ -124,6 +125,12 @@ public class MatchingService {
         if (idx == null) return null;
         String url = env.getProperty("app.type-image5." + idx);
         return (url != null && !url.isBlank()) ? url : null;
+    }
+
+    private String normMbti(String s) {
+        if (s == null) return null;
+        String v = s.trim().toUpperCase(Locale.ROOT);
+        return MBTI_INDEX.containsKey(v) ? v : null;
     }
 
     private static String normDept(String s) {
@@ -263,7 +270,12 @@ public class MatchingService {
             if (me.getSignalCredits() < 1) throw new ApiException(ErrorCode.SIGNAL_CREDITS_EXHAUSTED);
             me.setSignalCredits(me.getSignalCredits() - 1);
             s = signalRepository.save(Signal.builder().sender(me).receiver(target).status(Signal.Status.SENT).build());
-            signalLogRepository.save(SignalLog.builder().senderId(me.getId()).receiverId(target.getId()).receiverDepartment(target.getDepartment()).build());
+            signalLogRepository.save(SignalLog.builder()
+                    .senderId(me.getId())
+                    .receiverId(target.getId())
+                    .receiverDepartment(target.getDepartment())
+                    .receiverMbti(normMbti(target.getMbti()))
+                    .build());
             String message = "새로운 신호가 있어요!";
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("type", "SENT");
@@ -279,7 +291,12 @@ public class MatchingService {
                 s.setStatus(Signal.Status.SENT);
                 s.setReceiverDeletedAt(null);
                 signalRepository.save(s);
-                signalLogRepository.save(SignalLog.builder().senderId(me.getId()).receiverId(target.getId()).receiverDepartment(target.getDepartment()).build());
+                signalLogRepository.save(SignalLog.builder()
+                        .senderId(me.getId())
+                        .receiverId(target.getId())
+                        .receiverDepartment(target.getDepartment())
+                        .receiverMbti(normMbti(target.getMbti()))
+                        .build());
                 String message = "새로운 신호가 있어요!";
                 Map<String, Object> payload = new LinkedHashMap<>();
                 payload.put("type", "SENT");
@@ -351,6 +368,8 @@ public class MatchingService {
                 .userBId(s.getReceiver().getId())
                 .departmentA(s.getSender().getDepartment())
                 .departmentB(s.getReceiver().getDepartment())
+                .mbtiA(normMbti(s.getSender().getMbti()))
+                .mbtiB(normMbti(s.getReceiver().getMbti()))
                 .build());
         Map<String, Object> peers = new LinkedHashMap<>();
         peers.put(String.valueOf(s.getSender().getId()), peerBrief(s.getReceiver()));

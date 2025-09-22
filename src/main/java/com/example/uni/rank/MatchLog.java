@@ -1,3 +1,4 @@
+// com/example/uni/rank/MatchLog.java
 package com.example.uni.rank;
 
 import com.example.uni.common.domain.BaseTimeEntity;
@@ -9,7 +10,9 @@ import lombok.*;
 @Table(name = "match_logs",
         indexes = {
                 @Index(name = "idx_match_dept_a", columnList = "department_a"),
-                @Index(name = "idx_match_dept_b", columnList = "department_b")
+                @Index(name = "idx_match_dept_b", columnList = "department_b"),
+                @Index(name = "idx_match_mbti_a", columnList = "mbti_a"),
+                @Index(name = "idx_match_mbti_b", columnList = "mbti_b")
         })
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class MatchLog extends BaseTimeEntity {
@@ -28,4 +31,10 @@ public class MatchLog extends BaseTimeEntity {
 
     @Column(name = "department_b", nullable = false)
     private String departmentB;
+
+    @Column(name = "mbti_a", length = 16)
+    private String mbtiA;
+
+    @Column(name = "mbti_b", length = 16)
+    private String mbtiB;
 }
