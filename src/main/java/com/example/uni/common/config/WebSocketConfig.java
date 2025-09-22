@@ -1,4 +1,3 @@
-// com/example/uni/common/config/WebSocketConfig.java
 package com.example.uni.common.config;
 
 import lombok.RequiredArgsConstructor;
@@ -29,11 +28,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
-        if (patterns.length == 0) {
-            patterns = new String[] {"*"};
-        }
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns);
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).withSockJS();
+        if (patterns.length == 0) patterns = new String[] {"https://likelionhsu.co.kr"};
+        registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns);
+        registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns).withSockJS();
     }
 
     @Override
@@ -46,5 +43,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(@NonNull ChannelRegistration registration) {
         registration.interceptors(stompAuthChannelInterceptor);
+        registration.taskExecutor().corePoolSize(4).maxPoolSize(16).queueCapacity(1000);
+    }
+
+    @Override
+    public void configureClientOutboundChannel(@NonNull ChannelRegistration registration) {
+        registration.taskExecutor().corePoolSize(4).maxPoolSize(16).queueCapacity(1000);
     }
 }
