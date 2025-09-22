@@ -27,8 +27,8 @@ public class EventService {
 
         var user = userRepo.findById(userId).orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND));
 
-        final int INC_MATCH = 9999;
-        final int INC_SIGNAL = 9999;
+        final int INC_MATCH = 5;
+        final int INC_SIGNAL = 5;
 
         int newMatch  = Math.max(0, user.getMatchCredits())  + INC_MATCH;
         int newSignal = Math.max(0, user.getSignalCredits()) + INC_SIGNAL;
