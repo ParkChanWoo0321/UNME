@@ -33,6 +33,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         StompHeaderAccessor acc = StompHeaderAccessor.wrap(message);
 
         if (StompCommand.CONNECT.equals(acc.getCommand())) {
+            if (acc.getUser() != null) {
+                String sid = acc.getSessionId();
+                if (sid != null) wsSessions.add(acc.getUser().getName(), sid);
+                acc.setLeaveMutable(true);
+                return MessageBuilder.createMessage(message.getPayload(), acc.getMessageHeaders());
+            }
+
             String raw = Optional.ofNullable(acc.getFirstNativeHeader("Authorization"))
                     .orElse(acc.getFirstNativeHeader("authorization"));
             if (raw == null) throw new AccessDeniedException("Missing Authorization");
@@ -42,7 +49,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
             }
 
             String jwt = raw.substring(7).trim();
-            final String userId;
+            String userId;
             try {
                 userId = jwtProvider.validateAccessAndGetSubject(jwt);
             } catch (RuntimeException e) {

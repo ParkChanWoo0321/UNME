@@ -1,6 +1,8 @@
 // com/example/uni/common/config/WebSocketConfig.java
 package com.example.uni.common.config;
 
+import com.example.uni.auth.JwtProvider;
+import com.example.uni.user.repo.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +21,8 @@ import java.util.Arrays;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+    private final JwtProvider jwtProvider;
+    private final UserRepository userRepository;
 
     @Value("${ws.allowed-origins:*}")
     private String wsAllowedOrigins;
@@ -31,11 +35,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .toArray(String[]::new);
         if (patterns.length == 0) patterns = new String[] {"https://likelionhsu.co.kr"};
 
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns);
-        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).withSockJS();
+        var hh = new UserPrincipalHandshakeHandler();
+        var hi = new WsJwtHandshakeInterceptor(jwtProvider, userRepository);
 
-        registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns);
-        registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns).withSockJS();
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).setHandshakeHandler(hh).addInterceptors(hi);
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).setHandshakeHandler(hh).addInterceptors(hi).withSockJS();
+
+        registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns).setHandshakeHandler(hh).addInterceptors(hi);
+        registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns).setHandshakeHandler(hh).addInterceptors(hi).withSockJS();
     }
 
     @Override
