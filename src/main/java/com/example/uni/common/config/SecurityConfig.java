@@ -48,6 +48,7 @@ public class SecurityConfig {
                                 "/auth/logout",
                                 "/admin/type-images/**",
                                 "/ws", "/ws/**",
+                                "/api/ws", "/api/ws/**",
                                 "/files/**",
                                 "/api/files/**",
                                 "/error",
