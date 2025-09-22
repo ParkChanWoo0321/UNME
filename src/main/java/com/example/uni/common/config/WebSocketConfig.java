@@ -46,5 +46,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureClientInboundChannel(@NonNull ChannelRegistration registration) {
         registration.interceptors(stompAuthChannelInterceptor);
+        registration.taskExecutor().corePoolSize(4).maxPoolSize(16).queueCapacity(1000);
+    }
+
+    @Override
+    public void configureClientOutboundChannel(@NonNull ChannelRegistration registration) {
+        registration.taskExecutor().corePoolSize(4).maxPoolSize(16).queueCapacity(1000);
     }
 }
