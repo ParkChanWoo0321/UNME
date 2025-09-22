@@ -1,3 +1,4 @@
+// com/example/uni/common/config/WebSocketConfig.java
 package com.example.uni.common.config;
 
 import lombok.RequiredArgsConstructor;
