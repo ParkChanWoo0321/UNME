@@ -1,81 +1,71 @@
-// com/example/uni/common/config/StompAuthChannelInterceptor.java
 package com.example.uni.common.config;
 
-import com.example.uni.auth.JwtProvider;
-import com.example.uni.common.realtime.WsSessionRegistry;
-import com.example.uni.user.domain.User;                 // ★ 추가
-import com.example.uni.user.repo.UserRepository;        // ★ 추가
-import lombok.RequiredArgsConstructor;
-import org.springframework.lang.NonNull;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
-import java.util.Optional;
+import java.util.List;
+import java.util.Map;
 
-@Component
-@RequiredArgsConstructor
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
-    private final JwtProvider jwtProvider;
-    private final WsSessionRegistry wsSessions;
-    private final UserRepository userRepository; // ★ 추가
-
     @Override
-    public Message<?> preSend(@NonNull Message<?> message, @NonNull MessageChannel channel) {
-        StompHeaderAccessor acc = StompHeaderAccessor.wrap(message);
+    public Message<?> preSend(Message<?> message, MessageChannel channel) {
+        StompHeaderAccessor acc = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
+        if (acc == null) return message;
 
-        if (StompCommand.CONNECT.equals(acc.getCommand())) {
-            String raw = Optional.ofNullable(acc.getFirstNativeHeader("Authorization"))
-                    .orElse(acc.getFirstNativeHeader("authorization"));
-            if (raw == null) throw new AccessDeniedException("Missing Authorization");
-            raw = raw.trim();
-            if (raw.length() < 7 || !raw.regionMatches(true, 0, "Bearer ", 0, 7)) {
-                throw new AccessDeniedException("Bearer required");
+        if (acc.getCommand() == StompCommand.CONNECT) {
+            String auth = firstNativeHeaderIgnoreCase(acc, "Authorization");
+            if (auth != null && auth.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                String token = auth.substring(7).trim();
+                String user = extractUserId(token);
+                if (user != null && !user.isBlank()) {
+                    acc.setUser(new UsernamePasswordAuthenticationToken(user, "N/A", Collections.emptyList()));
+                }
             }
-
-            String jwt = raw.substring(7).trim();
-            final String userId;
-            try {
-                userId = jwtProvider.validateAccessAndGetSubject(jwt);
-            } catch (RuntimeException e) {
-                throw new AccessDeniedException("Invalid or expired token", e);
-            }
-
-            // ★ 탈퇴 사용자 차단
-            User u = userRepository.findById(Long.valueOf(userId)).orElse(null);
-            if (u == null || u.getDeactivatedAt() != null) {
-                throw new AccessDeniedException("Deactivated");
-            }
-
-            var principal = new UsernamePasswordAuthenticationToken(userId, null, Collections.emptyList());
-            acc.setUser(principal);
-            acc.setLeaveMutable(true);
-
-            String sid = acc.getSessionId();
-            if (sid != null) wsSessions.add(userId, sid);
-            return message;
         }
 
-        if (StompCommand.DISCONNECT.equals(acc.getCommand())) {
-            var p = acc.getUser();
-            if (p != null) {
-                String userId = p.getName();
-                String sid = acc.getSessionId();
-                if (userId != null && sid != null) wsSessions.remove(userId, sid);
-            }
-            return message;
+        if ((acc.getCommand() == StompCommand.SUBSCRIBE || acc.getCommand() == StompCommand.SEND) && acc.getUser() == null) {
+            throw new AccessDeniedException("Unauthenticated STOMP");
         }
 
-        if (StompCommand.SUBSCRIBE.equals(acc.getCommand()) || StompCommand.SEND.equals(acc.getCommand())) {
-            if (acc.getUser() == null) throw new AccessDeniedException("Unauthenticated");
-        }
         return message;
+    }
+
+    private static String firstNativeHeaderIgnoreCase(StompHeaderAccessor acc, String name) {
+        List<String> v = acc.getNativeHeader(name);
+        if (v != null && !v.isEmpty()) return v.get(0);
+        for (Map.Entry<String, List<String>> e : acc.toNativeHeaderMap().entrySet()) {
+            if (e.getKey() != null && e.getKey().equalsIgnoreCase(name) && e.getValue() != null && !e.getValue().isEmpty()) {
+                return e.getValue().get(0);
+            }
+        }
+        return null;
+    }
+
+    private static String extractUserId(String jwt) {
+        try {
+            String[] parts = jwt.split("\\.");
+            if (parts.length < 2) return null;
+            String p = parts[1].replace('-', '+').replace('_', '/');
+            int pad = (4 - (p.length() % 4)) % 4;
+            p = p + "====".substring(0, pad);
+            String json = new String(Base64.getDecoder().decode(p), StandardCharsets.UTF_8);
+            Map<String, Object> m = new ObjectMapper().readValue(json, new TypeReference<Map<String, Object>>(){});
+            Object v = m.getOrDefault("userId", m.getOrDefault("id", m.get("sub")));
+            return v == null ? null : String.valueOf(v);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }
