@@ -29,6 +29,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
         if (patterns.length == 0) patterns = new String[] {"https://likelionhsu.co.kr"};
+
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns);
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).withSockJS();
+
         registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns);
         registry.addEndpoint("/api/ws").setAllowedOriginPatterns(patterns).withSockJS();
     }
