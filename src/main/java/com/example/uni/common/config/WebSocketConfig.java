@@ -29,13 +29,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toArray(String[]::new);
-
         if (patterns.length == 0) {
-            patterns = new String[] {"*"}; // 폴백
+            patterns = new String[] {"*"};
         }
-
-        // Native WebSocket만 사용 (SockJS 제거)
         registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns);
+        registry.addEndpoint("/ws").setAllowedOriginPatterns(patterns).withSockJS();
     }
 
     @Override
