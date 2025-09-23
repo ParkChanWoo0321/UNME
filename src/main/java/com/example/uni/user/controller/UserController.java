@@ -1,6 +1,7 @@
 // com/example/uni/user/controller/UserController.java
 package com.example.uni.user.controller;
 
+import com.example.uni.push.PushService;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.dto.UserOnboardingRequest;
 import com.example.uni.user.dto.UserProfileResponse;
@@ -19,6 +20,10 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final PushService pushService;
+
+    public record PushKeys(String p256dh, String auth) {}
+    public record PushSubscription(String endpoint, PushKeys keys) {}
 
     private Long uid(String principal){ return Long.valueOf(principal); }
 
@@ -72,5 +77,11 @@ public class UserController {
         String imageUrl = body.get("imageUrl");
         User u = userService.updateProfileImageUrl(uid(principal), imageUrl);
         return ResponseEntity.ok(userService.toResponse(u));
+    }
+
+    @PostMapping("/me/push/subscribe")
+    public void subscribePush(@RequestBody PushSubscription sub, @AuthenticationPrincipal String principal) {
+        Long userId = Long.valueOf(principal);
+        pushService.save(userId, sub.endpoint(), sub.keys().p256dh(), sub.keys().auth());
     }
 }
