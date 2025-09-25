@@ -1,4 +1,3 @@
-// com/example/uni/user/repo/UserCandidateRepository.java
 package com.example.uni.user.repo;
 
 import com.example.uni.user.domain.Gender;
@@ -10,8 +9,6 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface UserCandidateRepository extends JpaRepository<User, Long> {
-
-    // ★ NULL 학과 허용 + 같은 학과만 배제 (me.department가 NULL이어도 후보 나옴)
     @Query("""
     select u from User u
     where u.gender = :gender
@@ -19,6 +16,10 @@ public interface UserCandidateRepository extends JpaRepository<User, Long> {
       and u.profileComplete = true
       and u.deactivatedAt is null
       and u.id <> :meId
+      and not exists (
+        select 1 from SeenCandidate sc
+        where sc.viewerId = :meId and sc.seenUserId = u.id
+      )
     """)
     List<User> findCandidates(@Param("gender") Gender gender,
                               @Param("dept") String dept,

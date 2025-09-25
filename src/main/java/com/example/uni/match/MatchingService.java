@@ -1,4 +1,3 @@
-// com/example/uni/match/MatchingService.java
 package com.example.uni.match;
 
 import com.example.uni.chat.ChatRoomService;
@@ -41,6 +40,7 @@ public class MatchingService {
     private final UserService userService;
     private final ObjectMapper om;
     private final Environment env;
+    private final SeenCandidateRepository seenCandidateRepository;
 
     @Value("#{T(org.springframework.util.StringUtils).hasText('${app.unknown-user.name:}') ? '${app.unknown-user.name}' : '탈퇴한 사용자'}")
     private String unknownUserName;
@@ -227,19 +227,26 @@ public class MatchingService {
         Collections.shuffle(pool);
         Set<Long> alreadySignaled = new HashSet<>();
         signalRepository.findAllBySender(me).forEach(s -> alreadySignaled.add(s.getReceiver().getId()));
+        Set<Long> seenIds = seenCandidateRepository.findSeenIds(me.getId());
         List<Map<String, Object>> candidates = new ArrayList<>();
+        List<SeenCandidate> marks = new ArrayList<>();
         for (User u : pool) {
             if (candidates.size() == 3) break;
             if (u.getDeactivatedAt() != null) continue;
             if (alreadySignaled.contains(u.getId())) continue;
+            if (seenIds.contains(u.getId())) continue;
             boolean hasRoom = chatRoomService.existsBetween(me.getId(), u.getId());
             if (hasRoom) continue;
             Map<String, Object> card = matchCandidateCard(u);
             addClientAliases(card);
             candidates.add(card);
+            marks.add(SeenCandidate.builder().viewerId(me.getId()).seenUserId(u.getId()).build());
         }
         if (candidates.isEmpty()) {
             return MatchResultResponse.builder().candidates(candidates).build();
+        }
+        if (!marks.isEmpty()) {
+            seenCandidateRepository.saveAll(marks);
         }
         me.setMatchCredits(me.getMatchCredits() - 1);
         try {
