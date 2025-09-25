@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +22,7 @@ public class OAuthService {
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
     private final ChatRoomService chatRoomService;
-    private final UserService userService; // ← 추가 (타입별 3.x URL 사용)
+    private final UserService userService;
 
     @Value("${kakao.redirect-uri}")
     private String redirectUri;
@@ -33,31 +33,29 @@ public class OAuthService {
     public Tokens loginWithAuthorizationCode(String code) {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
         var me = kakao.me(token.getAccess_token());
-        final String kakaoId = String.valueOf(me.getId());
+        String kakaoId = String.valueOf(me.getId());
+        String email = me.getKakaoAccount().getEmail();
 
-        User existing = userRepository.findByKakaoId(kakaoId).orElse(null);
-
-        if (existing != null && existing.getDeactivatedAt() != null) {
-            existing.setName(null);
-            if (existing.getKakaoId() != null && !existing.getKakaoId().startsWith("deleted:")) {
-                existing.setKakaoId("deleted:" + existing.getKakaoId() + ":" + UUID.randomUUID());
+        User user = userRepository.findByKakaoId(kakaoId).orElse(null);
+        if (user != null) {
+            if (user.getDeactivatedAt() != null) throw new ApiException(ErrorCode.ACCOUNT_DEACTIVATED);
+        } else {
+            Optional<User> byEmail = userRepository.findByEmail(email);
+            if (byEmail.isPresent()) {
+                if (byEmail.get().getDeactivatedAt() != null) throw new ApiException(ErrorCode.ACCOUNT_DEACTIVATED);
+                user = byEmail.get();
+            } else {
+                user = userRepository.save(
+                        User.builder()
+                                .kakaoId(kakaoId)
+                                .email(email)
+                                .nickname(me.getKakaoAccount().getProfile().getNickname())
+                                .profileComplete(false)
+                                .matchCredits(0)
+                                .build()
+                );
             }
-            existing.setEmail("deleted+" + existing.getId() + "+" + UUID.randomUUID() + "@deleted.local");
-            userRepository.save(existing);
-            existing = null;
         }
-
-        final User user = (existing != null)
-                ? existing
-                : userRepository.save(
-                User.builder()
-                        .kakaoId(kakaoId)
-                        .email(me.getKakaoAccount().getEmail())
-                        .nickname(me.getKakaoAccount().getProfile().getNickname())
-                        .profileComplete(false)
-                        .matchCredits(0)
-                        .build()
-        );
 
         Long uid = user.getId();
         String access = jwtProvider.generateAccess(String.valueOf(uid));
@@ -88,31 +86,15 @@ public class OAuthService {
 
     @Transactional
     public void unlinkUser(Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalStateException("User not found"));
-
+        User user = userRepository.findById(userId).orElseThrow(() -> new IllegalStateException("User not found"));
         String kid = user.getKakaoId();
-        if (kid != null && !kid.startsWith("deleted:")) {
-            kakao.unlinkWithAdminKey(kid);
-        }
-
+        if (kid != null) kakao.unlinkWithAdminKey(kid);
         user.setDeactivatedAt(LocalDateTime.now());
         user.setName(null);
-
-        String suffix = "-" + user.getId() + "-" + UUID.randomUUID();
-        if (kid != null && !kid.startsWith("deleted:")) {
-            user.setKakaoId("deleted:" + kid + suffix);
-        }
-        user.setEmail("deleted+" + user.getId() + "+" + UUID.randomUUID() + "@deleted.local");
         user.setProfileImageUrl(null);
-
-        // ✅ 이전 매칭 캐시 초기화
         user.setLastMatchJson("[]");
         user.setLastMatchAt(null);
-
         userRepository.save(user);
-
-        // ✅ 채팅방/목록에서 보여줄 이미지: "거절 케이스와 동일하게" 타입별 3.x로 고정
         int typeId = user.getTypeId() != null ? user.getTypeId() : 4;
         String leftImg = userService.resolveTypeImage3(typeId);
         chatRoomService.markUserLeft(userId, unknownUserName, leftImg);

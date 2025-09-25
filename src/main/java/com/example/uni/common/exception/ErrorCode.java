@@ -14,7 +14,8 @@ public enum ErrorCode {
     SIGNAL_CREDITS_EXHAUSTED(HttpStatus.CONFLICT, "신호보내기 횟수를 모두 소진하였습니다."),
     COUPON_INVALID_OR_EXPIRED(HttpStatus.BAD_REQUEST, "존재하지 않거나 만료된 코드입니다."),
     QUOTA_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "QUOTA_EXCEEDED"),
-    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR"),
+    ACCOUNT_DEACTIVATED(HttpStatus.FORBIDDEN, "ACCOUNT_DEACTIVATED");
 
     public final HttpStatus status;
     public final String message;
