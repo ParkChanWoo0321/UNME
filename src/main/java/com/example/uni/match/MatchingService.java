@@ -632,14 +632,16 @@ public class MatchingService {
         card.put("introduce", u.getIntroduce());
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         String profile = u.getProfileImageUrl();
-        String img1 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage(typeId);
-        card.put("typeImageUrl", img1);
+        String img2 = (profile != null && !profile.trim().isEmpty())
+                ? profile
+                : userService.resolveTypeImage2(typeId);
+        card.put("typeImageUrl2", img2);
         card.put("id", u.getId());
         card.put("targetUserId", u.getId());
         card.put("nickname", u.getName() != null ? u.getName() : u.getNickname());
         card.put("major", u.getDepartment());
-        card.put("avatarUrl", img1);
-        card.put("profileImageUrl", img1);
+        card.put("avatarUrl", img2);
+        card.put("profileImageUrl", img2);
         return card;
     }
 
