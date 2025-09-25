@@ -1,4 +1,3 @@
-// com/example/uni/auth/OAuthService.java
 package com.example.uni.auth;
 
 import com.example.uni.chat.ChatRoomService;
@@ -6,6 +5,7 @@ import com.example.uni.common.exception.ApiException;
 import com.example.uni.common.exception.ErrorCode;
 import com.example.uni.user.domain.User;
 import com.example.uni.user.repo.UserRepository;
+import com.example.uni.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,14 +22,13 @@ public class OAuthService {
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
     private final ChatRoomService chatRoomService;
+    private final UserService userService; // ← 추가 (타입별 3.x URL 사용)
 
     @Value("${kakao.redirect-uri}")
     private String redirectUri;
 
     @Value("#{T(org.springframework.util.StringUtils).hasText('${app.unknown-user.name:}') ? '${app.unknown-user.name}' : '탈퇴한 사용자'}")
     private String unknownUserName;
-    @Value("${app.unknown-user.image:}")
-    private String unknownUserImage;
 
     public Tokens loginWithAuthorizationCode(String code) {
         var token = kakao.exchangeCodeForToken(code, redirectUri);
@@ -112,7 +111,11 @@ public class OAuthService {
         user.setLastMatchAt(null);
 
         userRepository.save(user);
-        chatRoomService.markUserLeft(userId, unknownUserName, unknownUserImage);
+
+        // ✅ 채팅방/목록에서 보여줄 이미지: "거절 케이스와 동일하게" 타입별 3.x로 고정
+        int typeId = user.getTypeId() != null ? user.getTypeId() : 4;
+        String leftImg = userService.resolveTypeImage3(typeId);
+        chatRoomService.markUserLeft(userId, unknownUserName, leftImg);
     }
 
     public record Tokens(String access, String refresh) {}

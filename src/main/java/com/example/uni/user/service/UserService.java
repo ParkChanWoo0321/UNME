@@ -1,4 +1,3 @@
-// com/example/uni/user/service/UserService.java
 package com.example.uni.user.service;
 
 import com.example.uni.chat.ChatRoomService;
@@ -241,7 +240,7 @@ public class UserService {
         signalRepository.declineAllIncomingFor(me, Signal.Status.DECLINED, Signal.Status.SENT);
         signalRepository.declineAllOutgoingFrom(me, Signal.Status.DECLINED, Signal.Status.SENT);
         int tid = Optional.ofNullable(me.getTypeId()).orElse(4);
-        String leftImg = resolveTypeImage3(tid);
+        String leftImg = resolveTypeImage3(tid); // 3.x로 고정
         chatRoomService.markUserLeft(me.getId(), unknownUserName, leftImg);
     }
 
