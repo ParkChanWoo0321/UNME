@@ -32,14 +32,11 @@ public class UserService {
     private final TextGenClient textGenClient;
     private final ObjectMapper om;
     private final Environment env;
-
     private final ChatRoomService chatRoomService;
     private final SignalRepository signalRepository;
 
     @Value("#{T(org.springframework.util.StringUtils).hasText('${app.unknown-user.name:}') ? '${app.unknown-user.name}' : '탈퇴한 사용자'}")
     private String unknownUserName;
-    @Value("${app.unknown-user.image:}")
-    private String unknownUserImage;
 
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
@@ -148,10 +145,8 @@ public class UserService {
     @Transactional
     public User completeProfile(Long userId, UserOnboardingRequest req) {
         User u = getActive(userId);
-
         String prevName = u.getName();
         Integer prevTypeId = u.getTypeId();
-
         if (req.getName() != null) {
             userRepository.findByNameIgnoreCase(req.getName()).ifPresent(other -> {
                 if (!Objects.equals(other.getId(), userId)) throw new ApiException(ErrorCode.CONFLICT);
@@ -166,7 +161,6 @@ public class UserService {
         }
         u.setGender(req.getGender());
         u.setMbti(req.getMbti());
-
         Map<String,String> answers = new LinkedHashMap<>();
         answers.put("q1", req.getQ1()); answers.put("q2", req.getQ2());
         answers.put("q3", req.getQ3()); answers.put("q4", req.getQ4());
@@ -174,7 +168,6 @@ public class UserService {
         answers.put("q7", req.getQ7()); answers.put("q8", req.getQ8());
         answers.put("q9", req.getQ9()); answers.put("q10", req.getQ10());
         u.setTypeId(determineTypeId(answers));
-
         try {
             String newJson = om.writeValueAsString(answers);
             String oldJson = Optional.ofNullable(u.getDatingStyleAnswersJson()).orElse("");
@@ -192,18 +185,13 @@ public class UserService {
             u.setDatingStyleAnswersJson("{}");
             u.setEgenType(determineEgenType(answers));
         }
-
         u.setProfileComplete(true);
         if (u.getMatchCredits() <= 0) u.setMatchCredits(3);
         if (u.getSignalCredits() <= 0) u.setSignalCredits(3);
-
         User saved = userRepository.save(u);
-
-        // 이름 변경 → Firestore 동기화
         if (req.getName() != null && !Objects.equals(prevName, req.getName())) {
             try { chatRoomService.updatePeerName(saved.getId(), saved.getName()); } catch (RuntimeException ignore) {}
         }
-        // 타입 변경 + 수동 프사 없음 → 기본 이미지 변경 반영
         if (!Objects.equals(prevTypeId, saved.getTypeId())) {
             String profile = validProfile(saved);
             if (profile == null || profile.isBlank()) {
@@ -211,7 +199,6 @@ public class UserService {
                 try { chatRoomService.updatePeerAvatar(saved.getId(), fallback); } catch (RuntimeException ignore) {}
             }
         }
-
         return saved;
     }
 
@@ -229,45 +216,34 @@ public class UserService {
         return userRepository.save(u);
     }
 
-    // 상대/절대 URL 모두 받아 절대 URL로 저장 + Firestore 캐시 즉시 반영
     @Transactional
     public User updateProfileImageUrl(Long userId, String url) {
         User u = getActive(userId);
         String v = normalizeAbsoluteUrl(url);
         u.setProfileImageUrl(v);
         User saved = userRepository.save(u);
-
         String avatar = (v != null && !v.isBlank())
                 ? v
                 : imageUrlByType2(Optional.ofNullable(saved.getTypeId()).orElse(4));
         try { chatRoomService.updatePeerAvatar(saved.getId(), avatar); } catch (RuntimeException ignore) {}
-
         return saved;
     }
 
-    // 회원탈퇴: 대기중 신호 일괄 정리 + Firestore 마스킹 + 이전 매칭 캐시 초기화
     @Transactional
     public void deactivateAndCleanup(Long meId) {
         User me = userRepository.findById(meId)
                 .orElseThrow(() -> new ApiException(ErrorCode.USER_NOT_FOUND));
         if (me.getDeactivatedAt() != null) return;
-
         me.setDeactivatedAt(LocalDateTime.now());
-
-        // ✅ 이전 매칭 캐시 초기화
         me.setLastMatchJson("[]");
         me.setLastMatchAt(null);
-
         userRepository.save(me);
-
-        // 파라미터화된 bulk update 메서드 사용 (레포지토리 구현 필요)
         signalRepository.declineAllIncomingFor(me, Signal.Status.DECLINED, Signal.Status.SENT);
         signalRepository.declineAllOutgoingFrom(me, Signal.Status.DECLINED, Signal.Status.SENT);
-
-        chatRoomService.markUserLeft(me.getId(), unknownUserName, unknownUserImage);
+        int tid = Optional.ofNullable(me.getTypeId()).orElse(4);
+        String leftImg = resolveTypeImage3(tid);
+        chatRoomService.markUserLeft(me.getId(), unknownUserName, leftImg);
     }
-
-    // ---- helpers ----
 
     private String toInstagramUrlOrNull(String raw) {
         if (raw == null) return null;
@@ -303,8 +279,9 @@ public class UserService {
         TypeText tt = toTypeText(typeId);
         List<String> tags = deactivated ? List.of() : parseTags(u.getStyleTagsJson());
         String profile = deactivated ? null : validProfile(u);
-        String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
-        String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
+        String fallback3 = resolveTypeImage3(typeId);
+        String img1 = deactivated ? fallback3 : (profile != null ? profile : imageUrlByType(typeId));
+        String img2 = deactivated ? fallback3 : (profile != null ? profile : imageUrlByType2(typeId));
         String egenOut = deactivated ? null : toKoEgen(u.getEgenType());
         return UserProfileResponse.builder()
                 .userId(u.getId())
@@ -342,8 +319,9 @@ public class UserService {
         TypeText tt = toTypeText(typeId);
         List<String> tags = deactivated ? List.of() : parseTags(u.getStyleTagsJson());
         String profile = deactivated ? null : validProfile(u);
-        String img1 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType(typeId));
-        String img2 = deactivated ? unknownUserImage : (profile != null ? profile : imageUrlByType2(typeId));
+        String fallback3 = resolveTypeImage3(typeId);
+        String img1 = deactivated ? fallback3 : (profile != null ? profile : imageUrlByType(typeId));
+        String img2 = deactivated ? fallback3 : (profile != null ? profile : imageUrlByType2(typeId));
         String egenOut = deactivated ? null : toKoEgen(u.getEgenType());
         return PeerDetailResponse.builder()
                 .userId(u.getId())
@@ -366,24 +344,18 @@ public class UserService {
                 .build();
     }
 
-    // === URL 정규화 ===
     private String normalizeAbsoluteUrl(String raw) {
         if (raw == null) return null;
         String v = raw.trim();
         if (v.isEmpty()) return null;
-
         if (v.startsWith("http://") || v.startsWith("https://")) return v;
         if (v.startsWith("//")) return "https:" + v;
-
         String base = (publicBaseUrl == null) ? "" : publicBaseUrl.trim().replaceAll("/+$", "");
         String prefix = (apiPrefix == null ? "" : apiPrefix.trim());
         if (!prefix.isEmpty() && !prefix.startsWith("/")) prefix = "/" + prefix;
-
         String ctx = (contextPath == null) ? "" : contextPath.trim();
         if (!ctx.isEmpty() && !ctx.startsWith("/")) ctx = "/" + ctx;
-
         if (v.startsWith("/")) return base.isEmpty() ? v : base + v;
-
         if (v.startsWith("files/")) {
             String rel = (prefix + "/" + v).replaceAll("//+", "/");
             return base.isEmpty() ? rel : base + rel;
@@ -392,7 +364,6 @@ public class UserService {
             String rel = ("/" + v).replaceAll("//+", "/");
             return base.isEmpty() ? rel : base + rel;
         }
-
         String rel = (prefix + "/" + v).replaceAll("//+", "/");
         return base.isEmpty() ? rel : base + rel;
     }

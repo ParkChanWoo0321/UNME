@@ -44,8 +44,6 @@ public class MatchingService {
 
     @Value("#{T(org.springframework.util.StringUtils).hasText('${app.unknown-user.name:}') ? '${app.unknown-user.name}' : '탈퇴한 사용자'}")
     private String unknownUserName;
-    @Value("${app.unknown-user.image:}")
-    private String unknownUserImage;
 
     private static final Map<String, Integer> DEPT_TYPE4_INDEX = new LinkedHashMap<>();
     private static final Map<String, Integer> DEPT_TYPE4_INDEX_NORM = new HashMap<>();
@@ -327,10 +325,11 @@ public class MatchingService {
         toCard.put("name", deactivated ? unknownUserName : r.getName());
         toCard.put("department", deactivated ? null : r.getDepartment());
         if (deactivated) {
-            toCard.put("typeImageUrl2", unknownUserImage);
-            toCard.put("typeImageUrl3", unknownUserImage);
-            toCard.put("avatarUrl", unknownUserImage);
-            toCard.put("profileImageUrl", unknownUserImage);
+            String left = userService.resolveTypeImage3(typeId);
+            toCard.put("typeImageUrl2", left);
+            toCard.put("typeImageUrl3", left);
+            toCard.put("avatarUrl", left);
+            toCard.put("profileImageUrl", left);
         } else {
             String profile = r.getProfileImageUrl();
             String img3 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage3(typeId);
@@ -412,10 +411,11 @@ public class MatchingService {
             toCard.put("department", deactivated ? null : r.getDepartment());
             String message;
             if (deactivated) {
-                toCard.put("typeImageUrl2", unknownUserImage);
-                toCard.put("typeImageUrl3", unknownUserImage);
-                toCard.put("avatarUrl", unknownUserImage);
-                toCard.put("profileImageUrl", unknownUserImage);
+                String left = userService.resolveTypeImage3(typeId);
+                toCard.put("typeImageUrl2", left);
+                toCard.put("typeImageUrl3", left);
+                toCard.put("avatarUrl", left);
+                toCard.put("profileImageUrl", left);
                 message = "탈퇴한 사용자입니다.";
             } else if (s.getStatus() == Signal.Status.DECLINED) {
                 String profile = r.getProfileImageUrl();
@@ -550,8 +550,9 @@ public class MatchingService {
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         String avatar;
         if (deactivated) {
-            card.put("typeImageUrl2", unknownUserImage);
-            avatar = unknownUserImage;
+            String left = userService.resolveTypeImage3(typeId);
+            card.put("typeImageUrl2", left);
+            avatar = left;
         } else {
             String profile = u.getProfileImageUrl();
             String img2 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage2(typeId);
@@ -597,10 +598,11 @@ public class MatchingService {
         int typeId = (u.getTypeId() != null) ? u.getTypeId() : 4;
         String avatar;
         if (deactivated) {
+            String left = userService.resolveTypeImage3(typeId);
             card.put("typeId", typeId);
-            card.put("typeImageUrl", unknownUserImage);
-            card.put("typeImageUrl2", unknownUserImage);
-            avatar = unknownUserImage;
+            card.put("typeImageUrl", left);
+            card.put("typeImageUrl2", left);
+            avatar = left;
         } else {
             String profile = u.getProfileImageUrl();
             String img1 = (profile != null && !profile.trim().isEmpty()) ? profile : userService.resolveTypeImage(typeId);
