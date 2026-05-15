@@ -2,11 +2,11 @@
 
 <img width="267" height="70" alt="Image" src="https://github.com/user-attachments/assets/edacbf7d-5504-4d25-ac1f-32938bb6f758" />
 
-## 개발자 👤
+## 개발자 및 개발 기간 👤
 
-| 이름 | 역할 |
-|---|---|
-| 박찬우 | Backend Developer |
+| 이름 | 역할 | 기간 |
+|---|---|---|
+| 박찬우 | Backend Developer | 25.09.08 ~ 26.09.28 |
 
 ## 1. 프로젝트 소개 🚀
 
