@@ -1,6 +1,6 @@
 # 너랑나랑 (UNME) 💘
 
-사진 넣을 곳
+<img width="267" height="70" alt="Image" src="https://github.com/user-attachments/assets/edacbf7d-5504-4d25-ac1f-32938bb6f758" />
 
 ## 개발자 👤
 
@@ -23,10 +23,6 @@
 ## 3. 성과 및 회고 🏆
 
 사진 넣을 곳
-
-카카오 OAuth, JWT, JPA, WebSocket, Firestore, OpenAI API, 파일 업로드가 하나의 서비스 흐름 안에서 연결되도록 구현했습니다. 특히 매칭 후보 조회, 시그널 전송, 시그널 수락, 채팅방 생성, 실시간 알림까지 이어지는 흐름을 트랜잭션과 후속 알림 구조로 분리해 안정성을 높였습니다.
-
-프로젝트 컴파일은 `./gradlew.bat compileJava` 기준으로 통과 확인했습니다. 테스트 코드는 기본 Spring Boot context load 테스트만 존재하므로, 향후 서비스 로직 단위 테스트와 통합 테스트 보강이 필요합니다.
 
 ## 4. 주요 기능 ✨
 
