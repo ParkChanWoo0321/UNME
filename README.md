@@ -42,7 +42,19 @@
 
 ### 4.1 카카오 로그인 및 사용자 생성
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td align="center">
+      <img 
+        src="https://github.com/user-attachments/assets/43a5cc44-77c5-4de9-ad9c-33fd1ec79358"
+        alt="프로젝트 이미지" 
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
+
+<br />
 
 | 기능 | 설명 |
 |---|---|
