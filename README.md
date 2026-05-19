@@ -66,7 +66,19 @@
 
 ### 4.2 프로필 등록 및 내 정보 관리
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td align="center">
+      <img 
+        src="https://github.com/user-attachments/assets/4229e2f9-aa87-45d4-9d68-7e27f858d295"
+        alt="프로젝트 이미지" 
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
+
+<br />
 
 | 기능 | 설명 |
 |---|---|
