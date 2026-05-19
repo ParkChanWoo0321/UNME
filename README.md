@@ -66,8 +66,6 @@
 
 ### 4.2 프로필 등록 및 내 정보 관리
 
-<h3>4.2 프로필 등록 및 내 정보 관리</h3>
-
 <table>
   <tr>
     <td rowspan="2" width="50%" valign="top">
