@@ -68,7 +68,7 @@
 
 <table>
   <tr>
-    <td rowspan="2" width="50%" valign="top">
+    <td width="50%" valign="top">
       <img 
         src="https://github.com/user-attachments/assets/f687fdcf-1840-4c22-bcb9-f24a16e8eb77" 
         width="100%" 
@@ -82,6 +82,12 @@
     </td>
   </tr>
   <tr>
+    <td width="50%" valign="top">
+      <img 
+        src="https://github.com/user-attachments/assets/b021c153-7073-478d-b305-e6d4cb1799bf" 
+        width="100%" 
+      />
+    </td>
     <td width="50%" valign="top">
       <img 
         src="https://github.com/user-attachments/assets/4229e2f9-aa87-45d4-9d68-7e27f858d295" 
