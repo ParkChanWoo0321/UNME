@@ -66,17 +66,16 @@
 
 ### 4.2 프로필 등록 및 내 정보 관리
 
-<table>
-  <tr>
-    <td align="center">
-      <img 
-        src="https://github.com/user-attachments/assets/4229e2f9-aa87-45d4-9d68-7e27f858d295"
-        alt="프로젝트 이미지" 
-        width="100%"
-      />
-    </td>
-  </tr>
-</table>
+<div align="center">
+  <img 
+    src="https://github.com/user-attachments/assets/f687fdcf-1840-4c22-bcb9-f24a16e8eb77" 
+    width="48%" 
+  />
+  <img 
+    src="https://github.com/user-attachments/assets/4229e2f9-aa87-45d4-9d68-7e27f858d295" 
+    width="48%" 
+  />
+</div>
 
 <br />
 
