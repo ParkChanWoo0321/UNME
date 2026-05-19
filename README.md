@@ -66,16 +66,32 @@
 
 ### 4.2 프로필 등록 및 내 정보 관리
 
-<div align="center">
-  <img 
-    src="https://github.com/user-attachments/assets/f687fdcf-1840-4c22-bcb9-f24a16e8eb77" 
-    width="48%" 
-  />
-  <img 
-    src="https://github.com/user-attachments/assets/4229e2f9-aa87-45d4-9d68-7e27f858d295" 
-    width="48%" 
-  />
-</div>
+<h3>4.2 프로필 등록 및 내 정보 관리</h3>
+
+<table>
+  <tr>
+    <td rowspan="2" width="50%" valign="top">
+      <img 
+        src="https://github.com/user-attachments/assets/f687fdcf-1840-4c22-bcb9-f24a16e8eb77" 
+        width="100%" 
+      />
+    </td>
+    <td width="50%" valign="top">
+      <img 
+        src="https://github.com/user-attachments/assets/995ce84c-3511-4f59-ac18-84a5f9e8ea5a" 
+        width="100%" 
+      />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img 
+        src="https://github.com/user-attachments/assets/4229e2f9-aa87-45d4-9d68-7e27f858d295" 
+        width="100%" 
+      />
+    </td>
+  </tr>
+</table>
 
 <br />
 
