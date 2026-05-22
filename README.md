@@ -150,7 +150,17 @@
 
 ### 4.4 스마트 매칭
 
-사진 넣을 곳
+<div align="center">
+  <img 
+    src="https://github.com/user-attachments/assets/058d02de-5d22-4500-af95-52aac026e8e1" 
+    width="47%" 
+  />
+  &nbsp;
+  <img 
+    src="https://github.com/user-attachments/assets/d211e473-d0d4-4f44-bf01-49c89d4d7ae4
+    width="47%" 
+  />
+</div>
 
 | 기능 | 설명 |
 |---|---|
