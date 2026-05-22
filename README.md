@@ -157,10 +157,11 @@
   />
   &nbsp;
   <img 
-    src="https://github.com/user-attachments/assets/d211e473-d0d4-4f44-bf01-49c89d4d7ae4
+    src="https://github.com/user-attachments/assets/d211e473-d0d4-4f44-bf01-49c89d4d7ae4"
     width="47%" 
   />
 </div>
+<br />
 
 | 기능 | 설명 |
 |---|---|
