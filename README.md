@@ -151,16 +151,24 @@
 ### 4.4 스마트 매칭
 
 <div align="center">
-  <img 
-    src="https://github.com/user-attachments/assets/058d02de-5d22-4500-af95-52aac026e8e1" 
-    width="47%" 
-  />
-  &nbsp;
-  <img 
-    src="https://github.com/user-attachments/assets/d211e473-d0d4-4f44-bf01-49c89d4d7ae4"
-    width="47%" 
-  />
-</div>
+<table>
+  <tr>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/058d02de-5d22-4500-af95-52aac026e8e1" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+         src="https://github.com/user-attachments/assets/d211e473-d0d4-4f44-bf01-49c89d4d7ae4"
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+  </tr>
+</table>
 <br />
 
 | 기능 | 설명 |
