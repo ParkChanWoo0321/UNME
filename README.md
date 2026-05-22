@@ -150,7 +150,6 @@
 
 ### 4.4 스마트 매칭
 
-<div align="center">
 <table>
   <tr>
     <td width="50%" valign="top" style="padding: 6px;">
