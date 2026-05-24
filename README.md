@@ -185,7 +185,18 @@
 
 ### 4.5 시그널 플러팅
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td align="center">
+      <img 
+        src="https://github.com/user-attachments/assets/fcffc0d4-b427-4e80-a06d-784e4ab37375"
+        alt="프로젝트 이미지" 
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 | 기능 | 설명 |
 |---|---|
