@@ -213,7 +213,25 @@
 
 ### 4.6 시그널 수락 및 거절
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/04d94d90-8a72-4414-9c47-5b6761f9686c" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/016a2b94-b411-4f06-9f98-655b0c22abea" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 | 기능 | 설명 |
 |---|---|
