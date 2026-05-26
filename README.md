@@ -253,7 +253,18 @@
 
 ### 4.7 1:1 채팅방 관리
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td align="center">
+      <img 
+        src="https://github.com/user-attachments/assets/2bc90fe7-20ec-4ec9-b185-940506a83b0c"
+        alt="프로젝트 이미지" 
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 | 기능 | 설명 |
 |---|---|
