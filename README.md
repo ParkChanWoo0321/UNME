@@ -187,11 +187,18 @@
 
 <table>
   <tr>
-    <td align="center">
+    <td width="50%" valign="top" style="padding: 6px;">
       <img 
-        src="https://github.com/user-attachments/assets/fcffc0d4-b427-4e80-a06d-784e4ab37375"
-        alt="프로젝트 이미지" 
-        width="100%"
+        src="https://github.com/user-attachments/assets/fcffc0d4-b427-4e80-a06d-784e4ab37375" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/50a4b1af-4aab-4778-ab1a-3650148e0b95" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
       />
     </td>
   </tr>
