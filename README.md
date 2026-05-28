@@ -80,13 +80,13 @@
       />
       <br/>
       <img 
-        src="https://github.com/user-attachments/assets/5eacf553-bcbd-4d08-8022-c58023f14f16" 
+        src="https://github.com/user-attachments/assets/b021c153-7073-478d-b305-e6d4cb1799bf"
         width="100%" 
       />
     </td>
     <td width="50%" valign="top">
       <img 
-        src="https://github.com/user-attachments/assets/995ce84c-3511-4f59-ac18-84a5f9e8ea5a" 
+        src="https://github.com/user-attachments/assets/5eacf553-bcbd-4d08-8022-c58023f14f16"
         width="100%" 
       />
       <br/>
