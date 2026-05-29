@@ -278,8 +278,6 @@
 
 ### 4.8 실시간 WebSocket 알림
 
-사진 넣을 곳
-
 | 기능 | 설명 |
 |---|---|
 | STOMP WebSocket 연결 | `/ws`, `/api/ws` 엔드포인트로 STOMP WebSocket 연결을 제공합니다. |
@@ -291,8 +289,6 @@
 | 커밋 후 알림 | 트랜잭션 커밋 이후 알림을 보내 데이터와 알림 상태 불일치를 줄입니다. |
 
 ### 4.9 파일 업로드 및 정적 파일 제공
-
-사진 넣을 곳
 
 | 기능 | 설명 |
 |---|---|
@@ -306,8 +302,6 @@
 
 ### 4.10 유형 이미지 업로드
 
-사진 넣을 곳
-
 | 기능 | 설명 |
 |---|---|
 | 유형 이미지 업로드 | `/admin/type-images/{type}` API로 성향 유형 이미지를 업로드합니다. |
@@ -317,7 +311,25 @@
 
 ### 4.11 랭킹 및 통계
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/1f2b822d-ebfd-4a9f-8e93-03fd1df7ce90" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/5900729d-81c9-46b1-8372-c1d825efc085" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 | 기능 | 설명 |
 |---|---|
