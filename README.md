@@ -255,11 +255,18 @@
 
 <table>
   <tr>
-    <td align="center">
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/a539b2c8-bc18-4eae-ab7f-113ee0b65e61" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+    <td width="50%" valign="top" style="padding: 6px;">
       <img 
         src="https://github.com/user-attachments/assets/2bc90fe7-20ec-4ec9-b185-940506a83b0c"
-        alt="프로젝트 이미지" 
-        width="100%"
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
       />
     </td>
   </tr>
