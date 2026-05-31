@@ -348,7 +348,18 @@
 
 ### 4.12 이벤트 코드 사용
 
-사진 넣을 곳
+<table>
+  <tr>
+    <td align="center">
+      <img 
+        src="https://github.com/user-attachments/assets/ba4b35a1-94c5-4c1f-80db-654f919c1820"
+        alt="프로젝트 이미지" 
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 | 기능 | 설명 |
 |---|---|
