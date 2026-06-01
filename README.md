@@ -371,8 +371,6 @@
 
 ### 4.13 푸시 구독 저장
 
-사진 넣을 곳
-
 | 기능 | 설명 |
 |---|---|
 | Push 구독 저장 | 사용자의 Web Push endpoint, p256dh, auth 값을 저장합니다. |
@@ -483,230 +481,1067 @@ Access Token과 Refresh Token을 구분하기 위해 JWT claim에 `typ` 값을 �
 
 ## 8. API 명세 📡
 
-기본 context-path는 `/api`입니다.
+사진 넣을 곳
+
+`server.servlet.context-path=/api` 설정이 적용되어 있으므로, 아래 URL은 실제 외부 호출 경로 기준으로 작성했습니다.  
+인증 필요 여부는 `SecurityConfig` 기준입니다.
+
+### 8.1 공통 규칙
+
+| 항목 | 내용 |
+|---|---|
+| Base Path | `/api` |
+| 인증 방식 | `Authorization: Bearer {accessToken}` |
+| Refresh Token 전달 방식 | HttpOnly Cookie, 기본 쿠키 이름 `REFRESH` |
+| CORS Preflight | `OPTIONS /**` 전체 허용 |
+| 공통 인증 실패 | 인증이 필요한 API에서 토큰이 없거나 유효하지 않으면 인증 실패 |
+| 탈퇴 사용자 차단 | JWT가 유효해도 `deactivatedAt`이 존재하는 사용자는 차단 |
+| 공통 예외 응답 | `{ "error": "ERROR_CODE", "message": "message" }` |
+| Validation 예외 응답 | `{ "error": "VALIDATION_ERROR", "details": { "field": "message" } }` |
+
+---
+
+### 8.2 Auth API
+
+#### 카카오 로그인 시작
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/auth/kakao/login` |
+| 인증 필요 여부 | 아니오 |
+| Controller | `AuthController.login` |
+| 설명 | 카카오 OAuth 인가 URL로 리다이렉트합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `next` | String | 아니오 | 로그인 완료 후 이동할 프론트엔드 경로 또는 URL |
+
+**Response**
+
+| 상태 코드 | 설명 |
+|---|---|
+| `302 Found` | 카카오 OAuth 인가 URL로 리다이렉트 |
+
+---
+
+#### 카카오 로그인 콜백
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/auth/kakao/callback` |
+| 인증 필요 여부 | 아니오 |
+| Controller | `AuthController.callback` |
+| 설명 | 카카오 인가 코드를 받아 로그인 처리 후 프론트엔드로 리다이렉트합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `code` | String | 예 | 카카오 OAuth 인가 코드 |
+| `state` | String | 아니오 | 로그인 시작 시 전달한 이동 경로, 기본값 `/` |
+
+**Response**
+
+| 상태 코드 | 설명 |
+|---|---|
+| `302 Found` | 로그인 성공 시 Access Token을 URL fragment에 담아 프론트엔드로 리다이렉트 |
+| `302 Found` | 탈퇴 계정이면 `error=ACCOUNT_DEACTIVATED` fragment를 담아 리다이렉트 |
+
+**성공 Redirect 예시**
+
+```text
+{frontendBase}/matching#access={accessToken}
+```
+
+**탈퇴 계정 Redirect 예시**
+
+```text
+{frontendBase}/matching#error=ACCOUNT_DEACTIVATED
+```
+
+---
+
+#### Access Token 재발급
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/auth/refresh` |
+| 인증 필요 여부 | 아니오 |
+| Controller | `AuthController.reissueAccess` |
+| 설명 | Refresh Cookie를 검증하고 Access Token을 재발급합니다. |
+
+**Cookie**
+
+| 이름 | 필수 | 설명 |
+|---|---|---|
+| `REFRESH` | 예 | Refresh Token, 실제 이름은 `auth.cookie.name` 설정값 사용 |
+
+**Response Body**
+
+```json
+{
+  "accessToken": "jwt-access-token",
+  "expiresIn": 1800
+}
+```
+
+**Error Response**
+
+```json
+{
+  "error": "NO_REFRESH"
+}
+```
+
+```json
+{
+  "error": "NO_ACTIVE_USER"
+}
+```
+
+---
+
+#### 로그아웃
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/auth/logout` |
+| 인증 필요 여부 | 아니오 |
+| Controller | `AuthController.logout` |
+| 설명 | Refresh Cookie를 제거합니다. |
+
+**Response**
+
+| 상태 코드 | 설명 |
+|---|---|
+| `204 No Content` | 로그아웃 성공 |
+
+---
+
+#### 내 인증 정보 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/auth/me` |
+| 인증 필요 여부 | 예 |
+| Controller | `AuthController.me` |
+| 설명 | 로그인한 사용자의 프로필과 Firebase Custom Token을 반환합니다. |
+
+**Header**
+
+| 이름 | 필수 | 설명 |
+|---|---|---|
+| `Authorization` | 예 | `Bearer {accessToken}` |
+
+**Response Body**
+
+```json
+{
+  "firebaseCustomToken": "firebase-custom-token",
+  "user": {
+    "userId": 1,
+    "kakaoId": "123456789",
+    "email": "user@example.com",
+    "nickname": "kakaoNickname",
+    "name": "찬우",
+    "department": "항공AI소프트웨어공학과",
+    "studentNo": "20",
+    "birthYear": "2001",
+    "gender": "남자",
+    "profileComplete": true,
+    "matchCredits": 3,
+    "signalCredits": 3,
+    "version": 1,
+    "typeTitle": "세련된 감각형",
+    "typeContent": "만남을 빛내는 개성 넘치는 매력의 소유자!",
+    "typeImageUrl": "https://...",
+    "typeImageUrl2": "https://...",
+    "styleSummary": "성향 요약",
+    "recommendedPartner": "추천 파트너",
+    "tags": ["소통", "배려", "신뢰"],
+    "introduce": "안녕하세요",
+    "instagramUrl": "https://www.instagram.com/example",
+    "mbti": "ENFP",
+    "egenType": "에겐",
+    "createdAt": "2026-06-01T00:00:00",
+    "updatedAt": "2026-06-01T00:00:00"
+  }
+}
+```
+
+---
+
+#### 카카오 연결 해제 및 탈퇴 처리
+
+| 항목 | 내용 |
+|---|---|
+| Method | `DELETE` |
+| URL | `/api/auth/kakao/unlink` |
+| 인증 필요 여부 | 예 |
+| Controller | `AuthController.unlink` |
+| 설명 | 카카오 연결을 해제하고 사용자를 탈퇴 상태로 마스킹합니다. |
+
+**Header**
+
+| 이름 | 필수 | 설명 |
+|---|---|---|
+| `Authorization` | 예 | `Bearer {accessToken}` |
+
+**Response**
+
+| 상태 코드 | 설명 |
+|---|---|
+| `204 No Content` | 연결 해제 및 탈퇴 처리 성공 |
+
+---
+
+### 8.3 User API
+
+#### 닉네임 중복 확인
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/users/me/name/check` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.checkName` |
+| 설명 | 서비스 내 닉네임 사용 가능 여부를 확인합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `name` | String | 예 | 확인할 닉네임 |
+
+**Response Body**
+
+```json
+{
+  "available": true,
+  "message": "사용 가능한 닉네임입니다."
+}
+```
+
+---
+
+#### 프로필 등록/수정
+
+| 항목 | 내용 |
+|---|---|
+| Method | `PUT` |
+| URL | `/api/users/me/profile` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.profile` |
+| 설명 | 기본 프로필, MBTI, 10문항 성향 답변을 등록하거나 수정합니다. |
+
+**Request Body**
+
+```json
+{
+  "name": "찬우",
+  "department": "항공AI소프트웨어공학과",
+  "studentNo": "20",
+  "birthYear": "2001",
+  "gender": "남자",
+  "mbti": "ENFP",
+  "q1": "a",
+  "q2": "b",
+  "q3": "a",
+  "q4": "b",
+  "q5": "a",
+  "q6": "b",
+  "q7": "a",
+  "q8": "b",
+  "q9": "a",
+  "q10": "b"
+}
+```
+
+**Request Field**
+
+| 필드 | 타입 | 필수 | 검증/설명 |
+|---|---|---|---|
+| `name` | String | 예 | 2자 이상 8자 이하 |
+| `department` | String | 예 | 학과 |
+| `studentNo` | String | 예 | 학번 |
+| `birthYear` | String | 예 | `1990~2006` 사이 4자리 |
+| `gender` | Gender | 예 | `남자`, `여자`, `MALE`, `FEMALE` 허용 |
+| `mbti` | String | 아니오 | MBTI |
+| `q1` ~ `q10` | String | 예 | 각 문항 `a` 또는 `b` |
+
+**Response Body**
+
+`UserProfileResponse` 반환
+
+```json
+{
+  "userId": 1,
+  "kakaoId": "123456789",
+  "email": "user@example.com",
+  "nickname": "kakaoNickname",
+  "name": "찬우",
+  "department": "항공AI소프트웨어공학과",
+  "studentNo": "20",
+  "birthYear": "2001",
+  "gender": "남자",
+  "profileComplete": true,
+  "matchCredits": 3,
+  "signalCredits": 3,
+  "version": 1,
+  "typeTitle": "세련된 감각형",
+  "typeContent": "만남을 빛내는 개성 넘치는 매력의 소유자!",
+  "typeImageUrl": "https://...",
+  "typeImageUrl2": "https://...",
+  "styleSummary": "성향 요약",
+  "recommendedPartner": "추천 파트너",
+  "tags": ["소통", "배려", "신뢰"],
+  "introduce": null,
+  "instagramUrl": null,
+  "mbti": "ENFP",
+  "egenType": "에겐",
+  "createdAt": "2026-06-01T00:00:00",
+  "updatedAt": "2026-06-01T00:00:00"
+}
+```
+
+---
+
+#### 내 프로필 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/users/me/profile` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.getProfile` |
+| 설명 | 로그인한 사용자의 프로필을 조회합니다. |
+
+**Response Body**
+
+`UserProfileResponse` 반환
+
+---
+
+#### 자기소개 수정
+
+| 항목 | 내용 |
+|---|---|
+| Method | `PUT` |
+| URL | `/api/users/me/introduce` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.updateIntroduce` |
+| 설명 | 로그인한 사용자의 자기소개를 수정합니다. |
+
+**Request Body**
+
+```json
+{
+  "introduce": "안녕하세요. 반갑습니다."
+}
+```
+
+**Response Body**
+
+`UserProfileResponse` 반환
+
+---
+
+#### 인스타그램 수정
+
+| 항목 | 내용 |
+|---|---|
+| Method | `PUT` |
+| URL | `/api/users/me/instagram` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.updateInstagram` |
+| 설명 | 인스타그램 ID 또는 URL을 받아 정규화된 인스타그램 URL로 저장합니다. |
+
+**Request Body**
+
+```json
+{
+  "instagram": "example_id"
+}
+```
+
+또는
+
+```json
+{
+  "instagramId": "example_id"
+}
+```
+
+**Response Body**
+
+`UserProfileResponse` 반환
+
+---
+
+#### 프로필 이미지 URL 수정
+
+| 항목 | 내용 |
+|---|---|
+| Method | `PUT` |
+| URL | `/api/users/me/profile-image` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.updateProfileImage` |
+| 설명 | 프로필 이미지 URL을 저장하고 기존 채팅방 표시 이미지에도 반영합니다. |
+
+**Request Body**
+
+```json
+{
+  "imageUrl": "https://~~/api/files/profile-images/1/image.png"
+}
+```
+
+**Response Body**
+
+`UserProfileResponse` 반환
+
+---
+
+#### 푸시 구독 저장
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/users/me/me/push/subscribe` |
+| 인증 필요 여부 | 예 |
+| Controller | `UserController.subscribePush` |
+| 설명 | Web Push 구독 정보를 저장합니다. |
+
+**Request Body**
+
+```json
+{
+  "endpoint": "https://push-service.example/subscription",
+  "keys": {
+    "p256dh": "p256dh-key",
+    "auth": "auth-key"
+  }
+}
+```
+
+**Response**
+
+| 상태 코드 | 설명 |
+|---|---|
+| `200 OK` | 저장 성공, 응답 Body 없음 |
+
+---
+
+#### 상대 상세 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/users/{userId}` |
+| 인증 필요 여부 | 예 |
+| Controller | `PeerDetailController.peerDetail` |
+| 설명 | 특정 사용자 상세 프로필을 조회합니다. |
+
+**Path Variable**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `userId` | Long | 예 | 조회할 상대 사용자 ID |
+
+**Response Body**
+
+```json
+{
+  "userId": 2,
+  "name": "상대닉네임",
+  "department": "간호학과",
+  "studentNo": "21",
+  "birthYear": "2002",
+  "gender": "여자",
+  "typeTitle": "따뜻한 통찰력형",
+  "typeContent": "깊은 교감의 매력 소유자!",
+  "typeImageUrl": "https://...",
+  "typeImageUrl2": "https://...",
+  "styleSummary": "성향 요약",
+  "recommendedPartner": "추천 파트너",
+  "tags": ["안정감", "소통", "배려"],
+  "introduce": "안녕하세요",
+  "instagramUrl": "https://www.instagram.com/example",
+  "mbti": "INFJ",
+  "egenType": "에겐"
+}
+```
+
+---
+
+### 8.4 Matching / Signal API
+
+#### 최근 매칭 결과 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/match/previous` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.previous` |
+| 설명 | 로그인한 사용자의 직전 매칭 후보 목록을 조회합니다. |
+
+**Response Body**
+
+```json
+{
+  "candidates": [
+    {
+      "userId": 2,
+      "name": "상대닉네임",
+      "department": "간호학과",
+      "introduce": "안녕하세요",
+      "typeImageUrl": "https://...",
+      "typeImageUrl2": "https://...",
+      "typeImageUrl3": "https://...",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://...",
+      "id": 2,
+      "targetUserId": 2,
+      "nickname": "상대닉네임",
+      "major": "간호학과"
+    }
+  ]
+}
+```
+
+---
+
+#### 시그널 상태 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/signals/{targetId}/status` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.signalStatus` |
+| 설명 | 특정 사용자에게 이미 시그널을 보냈는지 확인합니다. |
+
+**Path Variable**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `targetId` | Long | 예 | 시그널 상태를 확인할 상대 사용자 ID |
+
+**Response Body**
+
+```json
+{
+  "alreadySent": true
+}
+```
+
+---
+
+#### 매칭 시작
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/match/start` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.start` |
+| 설명 | 매칭 크레딧을 사용해 최대 3명의 후보를 조회합니다. |
+
+**Response Body**
+
+```json
+{
+  "candidates": [
+    {
+      "userId": 2,
+      "name": "상대닉네임",
+      "department": "간호학과",
+      "introduce": "안녕하세요",
+      "typeImageUrl2": "https://...",
+      "id": 2,
+      "targetUserId": 2,
+      "nickname": "상대닉네임",
+      "major": "간호학과",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://..."
+    }
+  ]
+}
+```
+
+---
+
+#### 시그널 보내기
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/signals/{targetId}` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.sendSignal` |
+| 설명 | 특정 사용자에게 시그널을 보냅니다. |
+
+**Path Variable**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `targetId` | Long | 예 | 시그널을 받을 사용자 ID |
+
+**Response Body**
+
+```json
+{
+  "signalId": 10,
+  "status": "SENT"
+}
+```
+
+---
+
+#### 시그널 거절
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/signals/decline/{signalId}` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.decline` |
+| 설명 | 받은 시그널을 거절합니다. |
+
+**Path Variable**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `signalId` | Long | 예 | 거절할 시그널 ID |
+
+**Response Body**
+
+```json
+{
+  "ok": true
+}
+```
+
+---
+
+#### 시그널 수락
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/signals/accept/{signalId}` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.accept` |
+| 설명 | 받은 시그널을 수락하고 Firestore 1:1 채팅방을 생성합니다. |
+
+**Path Variable**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `signalId` | Long | 예 | 수락할 시그널 ID |
+
+**Response Body**
+
+```json
+{
+  "roomId": "r_1_2",
+  "participants": [1, 2],
+  "peers": {
+    "1": {
+      "userId": 2,
+      "name": "상대닉네임",
+      "department": "간호학과",
+      "typeImageUrl2": "https://...",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://..."
+    },
+    "2": {
+      "userId": 1,
+      "name": "내닉네임",
+      "department": "항공AI소프트웨어공학과",
+      "typeImageUrl2": "https://...",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://..."
+    }
+  },
+  "listCard": {
+    "1": {
+      "userId": 2,
+      "name": "상대닉네임",
+      "department": "간호학과",
+      "typeImageUrl2": "https://...",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://..."
+    }
+  },
+  "createdAt": "2026-06-01T00:00:00Z"
+}
+```
+
+---
+
+#### 보낸 시그널 목록 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/signals/sent` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.listSent` |
+| 설명 | 로그인한 사용자가 보낸 시그널 목록을 조회합니다. |
+
+**Response Body**
+
+```json
+[
+  {
+    "signalId": 10,
+    "toUser": {
+      "userId": 2,
+      "name": "상대닉네임",
+      "department": "간호학과",
+      "typeImageUrl2": "https://...",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://..."
+    },
+    "status": "SENT",
+    "createdAt": "2026-06-01T00:00:00",
+    "message": "성공적으로 신호를 보냈어요!"
+  }
+]
+```
+
+---
+
+#### 받은 시그널 목록 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/signals/received` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchingController.listReceived` |
+| 설명 | 로그인한 사용자가 받은 `SENT` 상태의 시그널 목록을 조회합니다. |
+
+**Response Body**
+
+```json
+[
+  {
+    "signalId": 10,
+    "fromUser": {
+      "userId": 2,
+      "name": "상대닉네임",
+      "department": "간호학과",
+      "typeImageUrl2": "https://...",
+      "id": 2,
+      "targetUserId": 2,
+      "nickname": "상대닉네임",
+      "major": "간호학과",
+      "avatarUrl": "https://...",
+      "profileImageUrl": "https://..."
+    },
+    "status": "SENT",
+    "createdAt": "2026-06-01T00:00:00",
+    "message": "새로운 신호가 있어요!"
+  }
+]
+```
+
+---
+
+### 8.5 Rank / Stats API
+
+#### 학과별 매칭 랭킹 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/stats/rank/department-matches` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchStatsController.departmentMatchRanking` |
+| 설명 | 매칭 로그 기준 학과별 매칭 랭킹을 조회합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `limit` | int | 아니오 | `10` | 조회할 랭킹 개수 |
+
+**Response Body**
+
+```json
+[
+  {
+    "rank": 1,
+    "department": "항공AI소프트웨어공학과",
+    "count": 12,
+    "imageUrl": "https://..."
+  }
+]
+```
+
+---
+
+#### MBTI별 시그널 랭킹 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/stats/rank/mbti-signals` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchStatsController.mbtiSignalsRanking` |
+| 설명 | 시그널 로그 기준 MBTI별 시그널 랭킹을 조회합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `limit` | int | 아니오 | `10` | 조회할 랭킹 개수 |
+
+**Response Body**
+
+```json
+[
+  {
+    "rank": 1,
+    "mbti": "ENFP",
+    "count": 10,
+    "imageUrl": "https://..."
+  }
+]
+```
+
+---
+
+#### MBTI별 매칭 랭킹 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/stats/rank/mbti-matches` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchStatsController.mbtiMatchesRanking` |
+| 설명 | 매칭 로그 기준 MBTI별 매칭 랭킹을 조회합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `limit` | int | 아니오 | `10` | 조회할 랭킹 개수 |
+
+**Response Body**
+
+```json
+[
+  {
+    "rank": 1,
+    "mbti": "ENFP",
+    "count": 8,
+    "imageUrl": "https://..."
+  }
+]
+```
+
+---
+
+#### 학과별 시그널 랭킹 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| URL | `/api/stats/rank/department-signals` |
+| 인증 필요 여부 | 예 |
+| Controller | `MatchStatsController.departmentSignalRanking` |
+| 설명 | 시그널 로그 기준 학과별 시그널 랭킹을 조회합니다. |
+
+**Query Parameter**
+
+| 이름 | 타입 | 필수 | 기본값 | 설명 |
+|---|---|---|---|---|
+| `limit` | int | 아니오 | `10` | 조회할 랭킹 개수 |
+
+**Response Body**
+
+```json
+[
+  {
+    "rank": 1,
+    "department": "간호학과",
+    "count": 15,
+    "imageUrl": "https://..."
+  }
+]
+```
+
+---
+
+### 8.6 Event API
+
+#### 이벤트 코드 사용
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/event/redeem` |
+| 인증 필요 여부 | 예 |
+| Controller | `EventController.redeem` |
+| 설명 | 이벤트 코드를 사용하고 매칭/시그널 크레딧을 충전합니다. |
+
+**Request Body**
+
+```json
+{
+  "code": "EVENT2026"
+}
+```
+
+**Request Field**
+
+| 필드 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `code` | String | 예 | 사용할 이벤트 코드 |
+
+**Response Body**
+
+```json
+{
+  "matchCredits": 8,
+  "signalCredits": 8
+}
+```
+
+---
+
+### 8.7 File API
+
+#### 프로필 이미지 업로드
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/files/upload` |
+| 인증 필요 여부 | 아니오 |
+| Controller | `FileUploadController.upload` |
+| Content-Type | `multipart/form-data` |
+| 설명 | 이미지 파일을 업로드하고 접근 가능한 URL을 반환합니다. 인증 토큰이 있으면 사용자 ID별 폴더에 저장됩니다. |
+
+**Multipart Form Data**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `file` | MultipartFile | 예 | 업로드할 이미지 파일 |
+
+**검증 조건**
+
+| 조건 | 실패 응답 |
+|---|---|
+| 파일이 비어 있음 | `{ "error": "EMPTY_FILE" }` |
+| 파일 크기 10MB 초과 | `{ "error": "FILE_TOO_LARGE" }` |
+| MIME 타입이 `image/`로 시작하지 않음 | `{ "error": "NOT_IMAGE" }` |
+
+**Response Body**
+
+```json
+{
+  "url": "https://~~/api/files/profile-images/1/image.png"
+}
+```
+
+---
+
+#### 유형 이미지 업로드
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| URL | `/api/admin/type-images/{type}` |
+| 인증 필요 여부 | 아니오 |
+| Controller | `TypeImageUploadController.upload` |
+| Content-Type | `multipart/form-data` |
+| 설명 | 성향/학과/MBTI 유형 이미지를 업로드합니다. 코드상 현재 SecurityConfig에서 인증 없이 허용됩니다. |
+
+**Path Variable**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `type` | String | 예 | 업로드할 유형 이미지 타입 |
+
+**허용되는 `type` 형식**
+
+| 형식 | 설명 |
+|---|---|
+| `1` ~ `4` | 기본 유형 이미지 |
+| `2.1` ~ `2.4` | 확장 유형 이미지 2번 세트 |
+| `3.1` ~ `3.5` | 확장 유형 이미지 3번 세트 |
+| `4.default`, `4.1` ~ `4.54` | 학과/랭킹용 유형 이미지 |
+| `5.1` ~ `5.16` | MBTI용 유형 이미지 |
+
+**Multipart Form Data**
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `file` | MultipartFile | 예 | 업로드할 이미지 파일 |
+
+**Response Body**
+
+```json
+{
+  "type": "2.1",
+  "saved": "/srv/unme/uploads/profile-types/type2.1.png",
+  "url": "https://host/api/files/profile-types/type2.1.png",
+  "propertyKey": "app.type-image2.1",
+  "propertyValue": "https://host/api/files/profile-types/type2.1.png"
+}
+```
+
+---
+
+### 8.8 Static Resource API
+
+`StaticResourceConfig`에서 등록된 정적 파일 제공 경로입니다. Controller API는 아니지만 프로젝트 코드에 존재하는 외부 접근 경로입니다.
 
 | 기능 | Method | URL | 인증 필요 여부 | 설명 |
 |---|---|---|---|---|
-| 카카오 로그인 시작 | GET | `/api/auth/kakao/login` | 아니오 | 카카오 인가 URL로 302 리다이렉트 |
-| 카카오 로그인 콜백 | GET | `/api/auth/kakao/callback` | 아니오 | 인가 코드로 로그인 처리 후 프론트엔드로 리다이렉트 |
-| Access Token 재발급 | POST | `/api/auth/refresh` | 아니오 | Refresh Cookie 검증 후 Access Token 재발급 |
-| 로그아웃 | POST | `/api/auth/logout` | 아니오 | Refresh Cookie 제거 |
-| 내 인증 정보 조회 | GET | `/api/auth/me` | 예 | Firebase Custom Token과 내 프로필 반환 |
-| 카카오 연결 해제 | DELETE | `/api/auth/kakao/unlink` | 예 | 카카오 unlink 및 탈퇴 마스킹 처리 |
-| 닉네임 중복 확인 | GET | `/api/users/me/name/check` | 예 | 닉네임 사용 가능 여부 조회 |
-| 프로필 등록/수정 | PUT | `/api/users/me/profile` | 예 | 기본 프로필과 성향 검사 등록 |
-| 내 프로필 조회 | GET | `/api/users/me/profile` | 예 | 내 프로필 정보 조회 |
-| 자기소개 수정 | PUT | `/api/users/me/introduce` | 예 | 자기소개 수정 |
-| 인스타그램 수정 | PUT | `/api/users/me/instagram` | 예 | 인스타그램 URL 정규화 후 저장 |
-| 프로필 이미지 URL 수정 | PUT | `/api/users/me/profile-image` | 예 | 프로필 이미지 URL 저장 및 채팅방 반영 |
-| 푸시 구독 저장 | POST | `/api/users/me/me/push/subscribe` | 예 | Web Push 구독 정보 저장 |
-| 상대 상세 조회 | GET | `/api/users/{userId}` | 예 | 상대 사용자 상세 정보 조회 |
-| 최근 매칭 결과 조회 | GET | `/api/match/previous` | 예 | 직전 매칭 후보 목록 조회 |
-| 시그널 상태 조회 | GET | `/api/signals/{targetId}/status` | 예 | 특정 대상에게 이미 시그널을 보냈는지 확인 |
-| 매칭 시작 | POST | `/api/match/start` | 예 | 매칭 후보 최대 3명 조회 |
-| 시그널 보내기 | POST | `/api/signals/{targetId}` | 예 | 상대에게 시그널 전송 |
-| 시그널 거절 | POST | `/api/signals/decline/{signalId}` | 예 | 받은 시그널 거절 |
-| 시그널 수락 | POST | `/api/signals/accept/{signalId}` | 예 | 시그널 수락 및 채팅방 생성 |
-| 보낸 시그널 목록 | GET | `/api/signals/sent` | 예 | 내가 보낸 시그널 목록 조회 |
-| 받은 시그널 목록 | GET | `/api/signals/received` | 예 | 내가 받은 시그널 목록 조회 |
-| 학과별 매칭 랭킹 | GET | `/api/stats/rank/department-matches` | 예 | 매칭 로그 기준 학과 랭킹 조회 |
-| MBTI별 시그널 랭킹 | GET | `/api/stats/rank/mbti-signals` | 예 | 시그널 로그 기준 MBTI 랭킹 조회 |
-| MBTI별 매칭 랭킹 | GET | `/api/stats/rank/mbti-matches` | 예 | 매칭 로그 기준 MBTI 랭킹 조회 |
-| 학과별 시그널 랭킹 | GET | `/api/stats/rank/department-signals` | 예 | 시그널 로그 기준 학과 랭킹 조회 |
-| 이벤트 코드 사용 | POST | `/api/event/redeem` | 예 | 코드 사용 후 매칭/시그널 크레딧 증가 |
-| 프로필 이미지 업로드 | POST | `/api/files/upload` | 아니오 | multipart 이미지 업로드, principal이 있으면 사용자별 경로 저장 |
-| 유형 이미지 업로드 | POST | `/api/admin/type-images/{type}` | 아니오 | 유형 이미지 파일 업로드 |
+| 업로드 파일 조회 | GET | `/api/files/**` | 아니오 | `app.upload.dir` 아래 파일을 정적 리소스로 제공합니다. |
+| 업로드 파일 조회 | GET | `/api/api/files/**` | 아니오 | 코드상 `/api/files/**` ResourceHandler도 등록되어 있어 context-path 적용 시 접근 가능한 경로입니다. |
 
-## 9. API 요청/응답 예시 🧾
+---
 
-### 카카오 로그인 시작
+### 8.9 WebSocket / STOMP API
 
-요청
+`WebSocketConfig`에서 등록된 WebSocket 엔드포인트입니다. HTTP Controller는 아니지만 실시간 알림 기능에 사용됩니다.
 
-    GET /api/auth/kakao/login?next=/matching
+| 구분 | URL 또는 Prefix | 인증 필요 여부 | 설명 |
+|---|---|---|---|
+| WebSocket Endpoint | `/api/ws` | 연결 시 JWT 검증 가능 | 코드상 `/ws` 엔드포인트가 등록되어 있고 context-path `/api`가 적용된 외부 접근 경로 |
+| WebSocket Endpoint | `/api/api/ws` | 연결 시 JWT 검증 가능 | 코드상 `/api/ws` 엔드포인트도 등록되어 있어 context-path 적용 시 접근 가능한 경로 |
+| SockJS Endpoint | `/api/ws` | 연결 시 JWT 검증 가능 | SockJS fallback 지원 |
+| SockJS Endpoint | `/api/api/ws` | 연결 시 JWT 검증 가능 | SockJS fallback 지원 |
+| Application Destination Prefix | `/app` | 예 | 클라이언트가 메시지를 보낼 때 사용하는 prefix |
+| Simple Broker Prefix | `/topic` | 예 | 브로드캐스트/토픽 메시지 prefix |
+| Simple Broker Prefix | `/queue` | 예 | 큐 메시지 prefix |
+| User Destination Prefix | `/user` | 예 | 사용자별 개인 큐 prefix |
+| Signal Queue | `/user/queue/signals` | 예 | 시그널 수신/거절 알림을 받는 개인 큐 |
+| Match Queue | `/user/queue/matches` | 예 | 매칭 성사 알림을 받는 개인 큐 |
 
-응답
+**WebSocket 인증 방식**
 
-    HTTP/1.1 302 Found
-    Location: https://kauth.kakao.com/oauth/authorize?client_id=...&redirect_uri=...&response_type=code&state=/matching
+| 방식 | 설명 |
+|---|---|
+| Query Token | Handshake 단계에서 `?token={accessToken}`을 전달하면 `WsJwtHandshakeInterceptor`가 검증 |
+| STOMP Header | CONNECT 단계에서 `Authorization: Bearer {accessToken}` 전달 시 `StompAuthChannelInterceptor`가 검증 |
+| 연결 차단 조건 | 토큰 누락, 만료, 형식 오류, 탈퇴 사용자, 존재하지 않는 사용자 |
 
-### Access Token 재발급
-
-요청
-
-    POST /api/auth/refresh
-    Cookie: REFRESH={refreshToken}
-
-응답
-
-    {
-      "accessToken": "jwt-access-token",
-      "expiresIn": 1800
-    }
-
-### 프로필 등록/수정
-
-요청
-
-    PUT /api/users/me/profile
-    Authorization: Bearer {accessToken}
-    Content-Type: application/json
-
-    {
-      "name": "찬우",
-      "department": "항공AI소프트웨어공학과",
-      "studentNo": "20",
-      "birthYear": "2001",
-      "gender": "남자",
-      "mbti": "ENFP",
-      "q1": "a",
-      "q2": "b",
-      "q3": "a",
-      "q4": "b",
-      "q5": "a",
-      "q6": "b",
-      "q7": "a",
-      "q8": "b",
-      "q9": "a",
-      "q10": "b"
-    }
-
-응답
-
-    {
-      "userId": 1,
-      "kakaoId": "123456789",
-      "email": "user@example.com",
-      "nickname": "카카오닉네임",
-      "name": "찬우",
-      "department": "항공AI소프트웨어공학과",
-      "studentNo": "20",
-      "birthYear": "2001",
-      "gender": "남자",
-      "profileComplete": true,
-      "matchCredits": 3,
-      "signalCredits": 3,
-      "version": 1,
-      "typeTitle": "세련된 감각형",
-      "typeContent": "만남을 빛내는 개성 넘치는 매력의 소유자!",
-      "typeImageUrl": "https://api.likelionhsu.co.kr/api/files/profile-types/type4.png",
-      "typeImageUrl2": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png",
-      "styleSummary": "성향 요약",
-      "recommendedPartner": "추천 파트너 문장",
-      "tags": ["소통", "배려", "신뢰"],
-      "introduce": null,
-      "instagramUrl": null,
-      "mbti": "ENFP",
-      "egenType": "에겐",
-      "createdAt": "2026-05-11T00:00:00",
-      "updatedAt": "2026-05-11T00:00:00"
-    }
-
-### 매칭 시작
-
-요청
-
-    POST /api/match/start
-    Authorization: Bearer {accessToken}
-
-응답
-
-    {
-      "candidates": [
-        {
-          "userId": 2,
-          "name": "상대닉네임",
-          "department": "간호학과",
-          "introduce": "안녕하세요",
-          "typeImageUrl2": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png",
-          "id": 2,
-          "targetUserId": 2,
-          "nickname": "상대닉네임",
-          "major": "간호학과",
-          "avatarUrl": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png",
-          "profileImageUrl": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png"
-        }
-      ]
-    }
-
-### 시그널 보내기
-
-요청
-
-    POST /api/signals/2
-    Authorization: Bearer {accessToken}
-
-응답
-
-    {
-      "signalId": 10,
-      "status": "SENT"
-    }
-
-### 시그널 수락 및 채팅방 생성
-
-요청
-
-    POST /api/signals/accept/10
-    Authorization: Bearer {accessToken}
-
-응답
-
-    {
-      "roomId": "r_1_2",
-      "participants": [1, 2],
-      "peers": {
-        "1": {
-          "userId": 2,
-          "name": "상대닉네임",
-          "department": "간호학과",
-          "typeImageUrl2": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png",
-          "avatarUrl": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png",
-          "profileImageUrl": "https://api.likelionhsu.co.kr/api/files/profile-types/type2.4.png"
-        }
-      },
-      "listCard": {},
-      "createdAt": "2026-05-11T00:00:00Z"
-    }
-
-### 이벤트 코드 사용
-
-요청
-
-    POST /api/event/redeem
-    Authorization: Bearer {accessToken}
-    Content-Type: application/json
-
-    {
-      "code": "EVENT2026"
-    }
-
-응답
-
-    {
-      "matchCredits": 8,
-      "signalCredits": 8
-    }
-
-### 랭킹 조회
-
-요청
-
-    GET /api/stats/rank/department-signals?limit=10
-    Authorization: Bearer {accessToken}
-
-응답
-
-    [
-      {
-        "rank": 1,
-        "department": "항공AI소프트웨어공학과",
-        "count": 12,
-        "imageUrl": "https://api.likelionhsu.co.kr/api/files/profile-types/type4.12.png"
-      }
-    ]
-
-## 10. 데이터베이스 설계 🗄️
+## 9. 데이터베이스 설계 🗄️
 
 ### 주요 테이블 요약
 
@@ -837,7 +1672,7 @@ Access Token과 Refresh Token을 구분하기 위해 JWT claim에 `typ` 값을 �
 
 Firestore에는 JPA Entity는 아니지만 `chatRooms` 컬렉션이 사용됩니다. 이 컬렉션에는 `participants`, `peers`, `pairKey`, `listCard`, `createdAt` 정보가 저장됩니다.
 
-## 11. 프로젝트 구조 📁
+## 10. 프로젝트 구조 📁
 
     src
      ├── main
@@ -933,7 +1768,7 @@ Firestore에는 JPA Entity는 아니지만 `chatRooms` 컬렉션이 사용됩니
                      └── uni
                          └── UniApplicationTests.java
 
-## 12. 트러블슈팅 🧯
+## 11. 트러블슈팅 🧯
 
 ### JWT 인증 실패와 탈퇴 사용자 접근 문제
 
@@ -1005,7 +1840,7 @@ DB 트랜잭션과 WebSocket 전송은 서로 다른 실행 흐름이기 때문�
 **결과**  
 DB 반영이 완료된 이벤트에 대해서만 사용자 알림이 발송되도록 안정성을 높였습니다.
 
-## 13. 프로젝트를 통해 배운 점 🌱
+## 12. 프로젝트를 통해 배운 점 🌱
 
 이 프로젝트를 구현하면서 단순 CRUD를 넘어 인증, 매칭 규칙, 실시간 알림, 외부 저장소 연동이 함께 동작하는 계층형 백엔드 구조를 경험했습니다. Controller는 요청과 응답의 경계를 담당하고, Service는 도메인 규칙과 트랜잭션을 처리하며, Repository는 데이터 접근을 담당하도록 역할을 나누는 것이 유지보수에 중요하다는 점을 체감했습니다.
 
@@ -1013,7 +1848,7 @@ DB 반영이 완료된 이벤트에 대해서만 사용자 알림이 발송되�
 
 매칭과 시그널 기능에서는 사용자의 행동 이력을 저장하고, 중복 노출과 중복 채팅방 생성을 막는 설계가 서비스 품질에 직접적인 영향을 준다는 점을 확인했습니다. 특히 프론트엔드가 바로 사용할 수 있도록 응답 필드 alias를 함께 제공하고, 탈퇴 사용자를 안전하게 마스킹하는 과정에서 실제 서비스 운영을 고려한 API 설계 경험을 쌓았습니다.
 
-## 14. 향후 개선 방향 🔧
+## 13. 향후 개선 방향 🔧
 
 | 개선 방향 | 설명 |
 |---|---|
