@@ -481,8 +481,6 @@ Access Token과 Refresh Token을 구분하기 위해 JWT claim에 `typ` 값을 �
 
 ## 8. API 명세 📡
 
-사진 넣을 곳
-
 `server.servlet.context-path=/api` 설정이 적용되어 있으므로, 아래 URL은 실제 외부 호출 경로 기준으로 작성했습니다.  
 인증 필요 여부는 `SecurityConfig` 기준입니다.
 
@@ -1542,6 +1540,19 @@ Access Token과 Refresh Token을 구분하기 위해 JWT claim에 `typ` 값을 �
 | 연결 차단 조건 | 토큰 누락, 만료, 형식 오류, 탈퇴 사용자, 존재하지 않는 사용자 |
 
 ## 9. 데이터베이스 설계 🗄️
+
+<table>
+  <tr>
+    <td align="center">
+      <img 
+        src="https://github.com/user-attachments/assets/2366ed3b-38d1-4854-a760-40bb2504ce84"
+        alt="프로젝트 이미지" 
+        width="100%"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 ### 주요 테이블 요약
 
