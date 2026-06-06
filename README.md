@@ -52,7 +52,25 @@
 
 운영 기간 동안 서비스 이용자가 빠르게 증가하여 총 1,300명 이상의 유저를 돌파하였다. 원래는 축제 종료일인 2025년 9월 30일까지만 운영할 예정이었지만, 사용자들의 추가 이용 요청이 이어져 운영 기간을 2025년 10월 3일까지 연장하였다. 이를 통해 단기간 이벤트성 서비스였음에도 실제 사용자 수요가 존재한다는 점을 확인할 수 있었다.
 
-사진 넣을곳
+<table>
+  <tr>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+        src="https://github.com/user-attachments/assets/4d267b67-dc18-4fea-b6a5-30408f8c3c6b" 
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+    <td width="50%" valign="top" style="padding: 6px;">
+      <img 
+         src="https://github.com/user-attachments/assets/85bd71e4-1776-4a70-84c0-ae9cf5254a50"
+        width="100%" 
+        style="border: 1px solid #ddd; border-radius: 8px;"
+      />
+    </td>
+  </tr>
+</table>
+<br />
 
 또한 본 프로젝트는 한서대학교 홍보 시스템인 `자미원` 2025년 11월호에도 소개되었다. 이는 프로젝트가 단순한 개인 개발 결과물이 아니라, 실제 학교 행사와 연계되어 운영되고 외부 홍보 자료에도 소개된 사례라는 점에서 의미가 있다.
 
