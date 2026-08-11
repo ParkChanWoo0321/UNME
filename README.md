@@ -14,6 +14,15 @@
   <img src="https://github.com/user-attachments/assets/b579da8f-cb89-4de3-baf6-32ea544a6ff8" alt="너랑나랑 서비스 대표 화면" width="100%" />
 </p>
 
+<p align="center">
+  <a href="#프로젝트-한눈에-보기">프로젝트</a> ·
+  <a href="#백엔드-아키텍처">아키텍처</a> ·
+  <a href="#인증과-세션-설계">인증</a> ·
+  <a href="#핵심-문제-해결">문제 해결</a> ·
+  <a href="#데이터-모델">데이터 모델</a> ·
+  <a href="#검증-상태와-기술-부채">검증과 한계</a>
+</p>
+
 ---
 
 ## 프로젝트 한눈에 보기
@@ -84,6 +93,9 @@ Controller 매핑 기준 29개의 HTTP 엔드포인트를 구현했지만, 이 �
 5. 사용자가 시그널을 보내고 상대가 수락하면 매칭 로그와 채팅방을 생성합니다.
 6. DB 커밋 이후 양쪽 사용자의 STOMP 큐로 이벤트를 발행합니다.
 
+<details>
+<summary><strong>후보 추천 → 시그널 응답 → 채팅 화면 보기</strong></summary>
+
 <table>
   <tr>
     <td width="50%" valign="top">
@@ -117,6 +129,8 @@ Controller 매핑 기준 29개의 HTTP 엔드포인트를 구현했지만, 이 �
   </tr>
 </table>
 
+</details>
+
 ## 백엔드 아키텍처
 
 ```mermaid
@@ -147,7 +161,7 @@ flowchart LR
 | In-process STOMP Broker | 시그널·매칭 실시간 이벤트 | 사용자별 큐를 빠르게 구성 | 단일 프로세스 기반, 재시도·영속성 없음 |
 | Local Filesystem | 프로필·유형 이미지 | 짧은 이벤트 운영에 단순한 구성 | 수평 확장과 보안 강화를 위해 Object Storage 전환 필요 |
 
-MySQL은 사용자·크레딧·성사 전 시그널을, Firestore는 성사 후 채팅방 존재와 메타데이터를 관리합니다. `match_logs`는 현재 관계 상태가 아니라 성사 시점의 통계 이벤트입니다. 이 분리는 구현 속도와 실시간 소비에는 유리했지만 두 저장소를 하나의 트랜잭션으로 묶지는 못하므로, 교차 저장소 장애에 대한 outbox·보상 처리가 필요합니다.
+MySQL은 사용자·크레딧·성사 전 시그널을, Firestore는 성사 후 채팅방 존재와 메타데이터를 관리합니다. `match_logs`는 현재 관계 상태가 아니라 성사 시점의 통계 이벤트이며, 두 저장소는 하나의 트랜잭션으로 묶여 있지 않습니다.
 
 ## 핵심 문제 해결
 
@@ -285,6 +299,68 @@ sequenceDiagram
 - [RealtimeNotifier](src/main/java/com/example/uni/common/realtime/RealtimeNotifier.java)
 - [MatchingService](src/main/java/com/example/uni/match/MatchingService.java)
 
+## 인증과 세션 설계
+
+Kakao Access Token은 사용자 정보를 조회할 때만 사용하고, 이후 서비스 인증에는 로컬 사용자 ID를 subject로 갖는 별도의 Access/Refresh JWT를 발급합니다.
+
+```mermaid
+sequenceDiagram
+    actor Client as Web Client
+    participant Kakao as Kakao OAuth
+    participant Auth as Spring Auth Boundary
+    participant DB as MySQL users
+    participant JWT as JwtProvider
+    participant Firebase as Firebase Admin
+
+    Client->>Auth: GET /api/auth/kakao/login?next=...
+    Auth-->>Client: 302 Kakao authorize URL<br/>state = next redirect
+    Client->>Kakao: 로그인 및 동의
+    Kakao-->>Client: 302 callback URL<br/>code, state
+    Client->>Auth: GET /api/auth/kakao/callback<br/>code, state
+    Auth->>Kakao: code 교환 및 사용자 정보 조회
+    Auth->>DB: kakaoId → email 순서로 사용자 조회
+    alt 탈퇴 계정
+        DB-->>Auth: deactivated_at 존재
+        Auth-->>Client: 302 frontend#error=ACCOUNT_DEACTIVATED
+    else 기존 활성 계정 또는 신규 계정
+        opt 신규 사용자
+            Auth->>DB: profileComplete=false로 저장
+        end
+        Auth->>JWT: typ=ACCESS / REFRESH JWT 생성
+        Auth-->>Client: Refresh HttpOnly Cookie<br/>302 frontend#access={Access JWT}
+    end
+
+    Client->>Auth: Authorization: Bearer {Access JWT}
+    Auth->>JWT: 서명·만료·typ=ACCESS 검증
+    Auth->>DB: 사용자 존재 및 deactivated_at 확인
+    Auth-->>Client: 보호 API 응답
+
+    Client->>Auth: GET /api/auth/me<br/>Authorization: Bearer {Access JWT}
+    Auth->>Firebase: local userId로 Custom Token 생성
+    Auth-->>Client: user + firebaseCustomToken
+
+    Client->>Auth: POST /api/auth/refresh + Refresh Cookie
+    Auth->>JWT: 서명·만료·typ=REFRESH 검증
+    Auth->>DB: 사용자 존재 및 활성 상태 확인
+    Auth-->>Client: 새 Refresh Cookie + Access Token
+```
+
+| 경계 | 현재 구현 | 보장 범위와 한계 |
+|---|---|---|
+| Access JWT | `typ=ACCESS`, 기본 30분, Bearer Header | 매 요청마다 사용자 활성 상태를 DB에서 다시 확인 |
+| Refresh JWT | `typ=REFRESH`, 기본 30일, HttpOnly Cookie | 새 토큰을 발급하지만 서버 저장소·denylist가 없어 이전 토큰은 만료 전 재사용 가능 |
+| OAuth Redirect | 허용 host 검사 후 URL fragment로 Access Token 전달 | `state`는 이동할 `next` 값이며 서버가 발급·검증하는 CSRF nonce가 아님 |
+| STOMP | 유효한 query Access Token으로 Principal을 만들거나 CONNECT의 Bearer Header로 인증 | 익명 WebSocket handshake 자체는 열릴 수 있으나 미인증 CONNECT·SUBSCRIBE·SEND는 차단. query token의 URL 노출 위험과 기존 세션 미종료가 남아 있음 |
+| Firebase | `/auth/me`에서 local userId 기반 Custom Token 발급 | 저장소에 Firestore Security Rules가 없어 Firebase 인가 전체는 이 코드만으로 검증할 수 없음 |
+
+**구현 근거**
+
+- [AuthController](src/main/java/com/example/uni/auth/AuthController.java)
+- [OAuthService](src/main/java/com/example/uni/auth/OAuthService.java)
+- [JwtProvider](src/main/java/com/example/uni/auth/JwtProvider.java)
+- [JwtAuthFilter](src/main/java/com/example/uni/auth/JwtAuthFilter.java)
+- [StompAuthChannelInterceptor](src/main/java/com/example/uni/common/config/StompAuthChannelInterceptor.java)
+
 ## 그 밖의 설계 판단
 
 | 영역 | 구현 판단 | 현재 경계와 개선점 | 구현 근거 |
@@ -295,21 +371,169 @@ sequenceDiagram
 
 ## 데이터 모델
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/2366ed3b-38d1-4854-a760-40bb2504ce84" alt="UNME ERD" width="100%" />
-</p>
+### MySQL ERD
 
-| 테이블 | 책임 | 주요 제약·설계 |
+아래 ERD는 이미지가 아니라 현재 JPA Entity를 기준으로 작성한 Mermaid 원본입니다. 채용 검토자가 관계와 제약조건을 저장소 안에서 직접 확인할 수 있도록 핵심 컬럼을 포함했습니다.
+
+```mermaid
+erDiagram
+    USERS {
+        bigint id PK
+        varchar kakao_id UK
+        varchar email UK
+        varchar nickname
+        varchar gender
+        varchar name UK
+        varchar department
+        varchar student_no
+        varchar birth_year
+        boolean profile_complete
+        int match_credits
+        int signal_credits
+        bigint version
+        int dating_style_type_id
+        varchar mbti
+        varchar egen_type
+        datetime deactivated_at
+        text last_match_json
+        datetime created_at
+        datetime updated_at
+    }
+
+    SIGNALS {
+        bigint id PK
+        bigint sender_id FK
+        bigint receiver_id FK
+        varchar status
+        datetime receiver_deleted_at
+        bigint version
+        datetime created_at
+        datetime updated_at
+    }
+
+    SEEN_CANDIDATES {
+        bigint id PK
+        bigint viewer_id
+        bigint seen_user_id
+        datetime created_at
+        datetime updated_at
+    }
+
+    SIGNAL_LOGS {
+        bigint id PK
+        bigint sender_id
+        bigint receiver_id
+        varchar receiver_department
+        varchar receiver_mbti
+        datetime created_at
+        datetime updated_at
+    }
+
+    MATCH_LOGS {
+        bigint id PK
+        bigint user_a_id
+        bigint user_b_id
+        varchar department_a
+        varchar department_b
+        varchar mbti_a
+        varchar mbti_b
+        datetime created_at
+        datetime updated_at
+    }
+
+    VERIFY_CODE {
+        uuid id PK
+        varchar code UK
+        boolean used
+        datetime used_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    PUSH_SUBSCRIPTIONS {
+        bigint id PK
+        bigint user_id UK
+        varchar endpoint
+        varchar p256dh
+        varchar auth
+        datetime created_at
+        datetime updated_at
+    }
+
+    USERS ||..o{ SIGNALS : "sender_id [physical FK]"
+    USERS ||..o{ SIGNALS : "receiver_id [physical FK]"
+    USERS ||..o{ SEEN_CANDIDATES : "viewer_id [logical, no FK]"
+    USERS ||..o{ SEEN_CANDIDATES : "seen_user_id [logical, no FK]"
+    USERS ||..o{ SIGNAL_LOGS : "sender_id [logical, no FK]"
+    USERS ||..o{ SIGNAL_LOGS : "receiver_id [logical, no FK]"
+    USERS ||..o{ MATCH_LOGS : "user_a_id [logical, no FK]"
+    USERS ||..o{ MATCH_LOGS : "user_b_id [logical, no FK]"
+    USERS ||..o| PUSH_SUBSCRIPTIONS : "user_id [logical, no FK]"
+```
+
+모든 자식 테이블은 독립 PK를 가지므로 Mermaid 표준의 비식별 관계선(`..`)으로 표시했습니다. 물리·논리 참조 여부는 관계 라벨과 컬럼의 `FK` 표기로 구분하며, 실제 물리 FK는 `signals.sender_id`, `signals.receiver_id` 두 개뿐입니다. 로그는 이벤트 스냅샷이지만 `seen_candidates`와 `push_subscriptions`도 FK 없이 ID를 보관하므로 데이터 정합성 정책을 명시적으로 보강할 필요가 있습니다.
+
+<details>
+<summary><strong>테이블별 제약·모델링 선택·Firestore 문서 구조 보기</strong></summary>
+
+| 테이블 | 책임 | 주요 제약·인덱스 |
 |---|---|---|
-| `users` | OAuth 계정, 프로필, 크레딧, 성향, 탈퇴 상태 | Kakao ID·이메일·서비스 이름 unique, `@Version` |
-| `signals` | 방향성 있는 시그널 상태 | `(sender_id, receiver_id)` unique, 상태 인덱스, `@Version` |
-| `seen_candidates` | 사용자별 후보 노출 이력 | `(viewer_id, seen_user_id)` unique |
-| `verify_code` | 축제 1회성 쿠폰 | 코드 unique, 조건부 UPDATE로 사용 선점 |
-| `signal_logs` | 시그널 시점의 상대 학과·MBTI | 현재 프로필과 분리된 통계 스냅샷 |
-| `match_logs` | 성사 시점의 양쪽 학과·MBTI | 양쪽 참여자를 `UNION ALL`로 집계 |
-| `push_subscriptions` | 사용자별 Web Push 구독 | 사용자 ID unique, 현재 이벤트 연결은 미완료 |
+| `users` | OAuth 계정, 프로필, 크레딧, 성향, 탈퇴 상태 | Kakao ID·이메일·서비스 이름 unique, 성별·학과 인덱스, `@Version` |
+| `signals` | 방향성 있는 성사 전 시그널 상태 | `(sender_id, receiver_id)` unique, 발신·수신·상태 복합 인덱스, 두 User FK, `@Version` |
+| `seen_candidates` | 사용자별 후보 노출 이력 | `(viewer_id, seen_user_id)` unique, viewer 인덱스, 논리 참조 |
+| `signal_logs` | 발신 시점의 상대 학과·MBTI 스냅샷 | 상대 학과·MBTI 집계 인덱스, 사용자 ID는 논리 참조 |
+| `match_logs` | 성사 시점의 양쪽 학과·MBTI 스냅샷 | 양쪽 학과·MBTI 인덱스, `UNION ALL` 집계, 사용자 ID는 논리 참조 |
+| `verify_code` | 축제 1회성 쿠폰 | UUID PK, 코드 unique, `used=false` 조건부 UPDATE로 사용 선점 |
+| `push_subscriptions` | 사용자별 Web Push 구독 | 사용자 ID unique로 1인 1구독, 이벤트 연동은 미완료 |
 
-Firestore의 `chatRooms`는 MySQL Entity가 아닙니다. 정렬된 사용자 ID로 만든 roomId, 참여자, 사용자별 상대 카드인 `peers`, 목록 조회용 `listCard`, 생성 시각을 저장합니다.
+### 데이터 모델링 선택과 대가
+
+| 선택 | 적용 이유 | 현재 대가 |
+|---|---|---|
+| `dating_style_answers_json`, `style_tags_json`, `last_match_json`을 User에 JSON 문자열로 저장 | 짧은 이벤트 운영에서 조인과 테이블 수를 줄이고 직전 추천 결과를 빠르게 반환 | DB 타입·참조 무결성 검증과 JSON 내부 검색이 어렵고 애플리케이션이 직렬화·동기화 책임을 가짐 |
+| 신호·매칭 통계를 현재 상태와 분리한 append-only 로그로 저장 | 원본 신호 삭제와 프로필 변경 이후에도 발생 시점의 학과·MBTI로 집계 | 사용자 ID FK와 기간 복합 인덱스가 없어 장기 운영 전 보강 필요 |
+| Push 구독을 `user_id` unique로 제한 | 사용자별 최신 구독을 단순하게 조회 | 한 사용자의 여러 브라우저·기기를 동시에 지원하지 못함 |
+| 쿠폰에는 `used`, `used_at`만 기록 | 축제 기간의 1회 사용 판정에 필요한 최소 모델 | 만료 시각과 `used_by`가 없어 기간 정책·사용자별 감사 추적을 지원하지 않음 |
+
+**구현 근거**
+
+- [User](src/main/java/com/example/uni/user/domain/User.java)
+- [Signal](src/main/java/com/example/uni/match/Signal.java)
+- [SeenCandidate](src/main/java/com/example/uni/match/SeenCandidate.java)
+- [SignalLog](src/main/java/com/example/uni/rank/SignalLog.java), [MatchLog](src/main/java/com/example/uni/rank/MatchLog.java)
+- [VerifyCode](src/main/java/com/example/uni/event/VerifyCode.java), [PushSubscriptionEntity](src/main/java/com/example/uni/push/PushSubscriptionEntity.java)
+
+### Firestore 문서 모델
+
+성사 후 관계는 MySQL 매칭 테이블이 아니라 Firestore `chatRooms` 문서 존재로 확인합니다. 관계형 ERD에 억지로 포함하지 않고, 실제 문서 키와 비정규화 구조를 별도로 표현했습니다.
+
+```mermaid
+flowchart LR
+    Room["chatRooms/{roomId}<br/>roomId = r_{minId}_{maxId}"]
+    Participants["participants<br/>[uidA, uidB] 문자열 배열"]
+    PairKey["pairKey<br/>minId_maxId"]
+    Peers["peers.{viewerUid}<br/>해당 사용자가 볼 상대 카드"]
+    PeerFields["userId · name · department<br/>profile/type images<br/>status는 탈퇴 시 LEFT"]
+    ListCard["listCard.{viewerUid}<br/>채팅 목록용 상대 카드 미러"]
+    CreatedAt["createdAt<br/>server timestamp"]
+
+    Room --> Participants
+    Room --> PairKey
+    Room --> Peers
+    Peers --> PeerFields
+    Peers -->|"얕은 복제"| ListCard
+    Room --> CreatedAt
+```
+
+- 사용자 ID를 정렬한 결정적 roomId로 같은 사용자 쌍이 같은 문서 경로를 사용합니다.
+- `peers.{viewerUid}`에는 그 사용자가 보게 될 상대 카드가 들어가며, `listCard`는 목록 조회를 위한 미러입니다.
+- 프로필 변경·탈퇴 시 참여 방을 조회해 `peers`와 `listCard`를 함께 갱신합니다.
+- 생성 과정은 Firestore Transaction이 아닌 `get → set/update`이고 MySQL과도 원자적이지 않습니다.
+- 이 백엔드는 채팅방 메타데이터와 Firebase Custom Token까지만 담당하며, 채팅 메시지 이벤트 처리는 포함하지 않습니다.
+
+**구현 근거:** [ChatRoomService](src/main/java/com/example/uni/chat/ChatRoomService.java), [MatchingService.acceptSignal](src/main/java/com/example/uni/match/MatchingService.java)
+
+</details>
 
 ## 대표 API 경계
 
@@ -346,7 +570,7 @@ Firestore의 `chatRooms`는 MySQL Entity가 아닙니다. 정렬된 사용자 ID
 ### 현재 확인된 상태
 
 - Java 21 환경에서 메인 소스 `compileJava` 성공
-- JPA Entity와 수동 ERD 기준 7개 MySQL 테이블 구조 확인
+- JPA Entity 7개를 기준으로 Mermaid ERD와 물리 FK·논리 참조를 대조
 - 도메인 동작은 실제 축제 운영을 통해 사용됐지만, 운영 당시의 부하·지연·가용성 지표는 남아 있지 않음
 - 자동화 테스트는 `contextLoads` 1건뿐이고 현재 실패함. 별도 test profile 없이 설정된 MySQL에 연결해 `ddl-auto=update`를 시도한 뒤 `${kakao.admin-key}` 미설정으로 컨텍스트 로딩 실패
 
@@ -355,9 +579,10 @@ Firestore의 `chatRooms`는 MySQL Entity가 아닙니다. 정렬된 사용자 ID
 | 우선순위 | 현재 한계 | 다음 개선 |
 |---|---|---|
 | P0 | 테스트가 기본 MySQL·Firebase·필수 설정에 결합되어 있음 | Testcontainers MySQL, 외부 연동 대역, 도메인 단위·통합 테스트, CI 구축 |
-| P0 | `ddl-auto=update`와 수동 배포에 의존해 스키마·환경 재현성이 부족함 | 환경별 profile, Flyway, 운영 `ddl-auto=validate`, 재현 가능한 배포 파이프라인 |
+| P0 | `ddl-auto=update`와 수동 배포에 의존하고 일부 사용자 ID 참조에 FK가 없어 스키마·환경 재현성이 부족함 | 환경별 profile, Flyway, 운영 `ddl-auto=validate`, 참조 무결성 정책, 재현 가능한 배포 파이프라인 |
 | P0 | 파일·유형 이미지 공개 업로드와 상대 상세 조회의 인가·필드 최소화가 부족함 | 역할·관계 기반 인가, 실제 파일 시그니처 검증, 응답·경로 최소화, Object Storage |
 | P1 | MySQL 커밋 전에 Firestore·Kakao 작업이 수행되고 STOMP 전달이 비영속적임 | Transactional Outbox, 보상·재시도 정책, 외부 메시지 브로커 |
+| P1 | Refresh Token 서버 폐기, OAuth state nonce, 기존 WebSocket 세션 종료가 없음 | `jti` 기반 세션 저장·회전·폐기, state 검증, 탈퇴 시 세션 강제 종료 |
 
 한계를 숨기기보다, 실제 운영 이후 코드를 다시 검토해 다음 설계에서 우선 해결해야 할 문제로 정리했습니다.
 
